@@ -40,7 +40,7 @@ MIN_FRAMERATE_SAFETY = 20  # Disable control if below this
 # Heartbeat interval (in milliseconds)
 HEARTBEAT_INTERVAL_MS = 2000  # Send heartbeat every 2 seconds (firmware expects within 5 seconds)
 
-class QtPluto(QObject):
+class QtMars(QObject):
     """
     Class to handle MARS IO operations.
     """
@@ -860,7 +860,7 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     # Initialize with automatic heartbeat enabled and logging enabled for testing
-    pluto = QtPluto(port="COM4", auto_heartbeat=True, log_heartbeat=True)
+    pluto = QtMars(port="COM4", auto_heartbeat=True, log_heartbeat=True)
 
     # Setup signal handler for Ctrl+C
     def signal_handler(_sig, _frame):
@@ -880,6 +880,7 @@ if __name__ == "__main__":
 
     pluto.stop_sensorstream()
     pluto.get_version()
+    print(pluto.angle1)
 
     # Note: No need to manually call send_heartbeat() anymore!
     # The automatic heartbeat timer is already running
