@@ -808,10 +808,30 @@ class RecursiveLeastSquares:
 
 if __name__ == "__main__":
     import sys
+    import signal
     from PySide6.QtWidgets import QApplication
+    from PySide6.QtCore import QTimer
     from qtjedi import JediComm
+
     app = QApplication(sys.argv)
-    pluto = QtPluto(port="COM5")
+    pluto = QtPluto(port="COM4")
+
+    # Setup signal handler for Ctrl+C
+    def signal_handler(_sig, _frame):
+        print("\nKeyboard interrupt received. Cleaning up...")
+        pluto.stop_sensorstream()
+        pluto.close()
+        app.quit()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    # Create a timer to allow Python to process signals
+    # This makes Ctrl+C work properly with Qt event loop
+    timer = QTimer()
+    timer.timeout.connect(lambda: None)  # Wake up Python interpreter
+    timer.start(500)  # Check every 500ms
+
     pluto.stop_sensorstream()
     pluto.get_version()
     pluto.get_version()
@@ -822,4 +842,6 @@ if __name__ == "__main__":
     pluto.get_version()
     pluto.send_heartbeat()
     pluto.start_sensorstream()
+
+    print("MARS device running. Press Ctrl+C to stop...")
     app.exec()
