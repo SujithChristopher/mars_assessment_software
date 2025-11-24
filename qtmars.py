@@ -7,7 +7,7 @@ Date: 17 October 2025
 Email: siva82kb@gmail.com
 """
 
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QTimer
 from qtjedi import JediComm
 from datetime import datetime
 import sys
@@ -37,6 +37,9 @@ LOW_HIGH_ARM_WEIGHT_ERROR_THRESHOLD = 0.5  # Threshold for arm weight range chec
 MIN_FRAMERATE_WARNING = 85  # Warn if below this
 MIN_FRAMERATE_SAFETY = 20  # Disable control if below this
 
+# Heartbeat interval (in milliseconds)
+HEARTBEAT_INTERVAL_MS = 2000  # Send heartbeat every 2 seconds (firmware expects within 5 seconds)
+
 class QtPluto(QObject):
     """
     Class to handle MARS IO operations.
@@ -47,7 +50,7 @@ class QtPluto(QObject):
     controlmodechanged = Signal()
     armweightinoutofrange = Signal()
 
-    def __init__(self, port: str | None = None, baudrate: int = 115200, limb: str = "Right") -> None:
+    def __init__(self, port: str | None = None, baudrate: int = 115200, limb: str = "Right", auto_heartbeat: bool = True, log_heartbeat: bool = False) -> None:
         super().__init__()
         self.dev = JediComm(port, baudrate)
         # Upacked data from MARS with time stamp.
@@ -80,6 +83,11 @@ class QtPluto(QObject):
         # Logging
         self._logger = self._setup_logger()
         self._has_error_logged_once = False
+        # Heartbeat timer
+        self._heartbeat_timer = QTimer()
+        self._heartbeat_timer.timeout.connect(self._send_heartbeat_internal)
+        self._auto_heartbeat_enabled = auto_heartbeat
+        self._log_heartbeat = log_heartbeat
         # Packet decoding functions.
         self._packet_type_handlers = {
             mdef.OutDataType["SENSORSTREAM"]: self._handle_stream,
@@ -92,6 +100,13 @@ class QtPluto(QObject):
 
         # start the communication
         self.dev.start()
+
+        # Send initial heartbeat immediately to clear any existing NOHEARTBEAT errors
+        if self._auto_heartbeat_enabled:
+            self._logger.info("Sending initial heartbeat")
+            self.send_heartbeat()
+            # Start automatic heartbeat timer
+            self.start_heartbeat_timer()
 
     def _setup_logger(self) -> logging.Logger:
         """Setup logger for MARS communication."""
@@ -305,7 +320,12 @@ class QtPluto(QObject):
     def ep_pos_in_plane(self) -> Tuple[float, float, float]:
         """Get endpoint position in the movement plane using forward kinematics."""
         return self.forward_kinematics_in_plane(self.angle2, self.angle3)
- 
+
+    @property
+    def is_heartbeat_active(self) -> bool:
+        """Check if automatic heartbeat timer is active."""
+        return self._heartbeat_timer.isActive()
+
     def is_connected(self):
         return self.dev.is_open()
 
@@ -550,8 +570,30 @@ class QtPluto(QObject):
             self._compliedate = parts[2]
             self._logger.info(f"Received Version | Version: {self._version} | Compile Date: {self._compliedate} | Device ID: {self._devname}")
     
+    def start_heartbeat_timer(self):
+        """Start the automatic heartbeat timer."""
+        if not self._heartbeat_timer.isActive():
+            self._heartbeat_timer.start(HEARTBEAT_INTERVAL_MS)
+            self._logger.info(f"Heartbeat timer started (interval: {HEARTBEAT_INTERVAL_MS}ms)")
+
+    def stop_heartbeat_timer(self):
+        """Stop the automatic heartbeat timer."""
+        if self._heartbeat_timer.isActive():
+            self._heartbeat_timer.stop()
+            self._logger.info("Heartbeat timer stopped")
+
+    def _send_heartbeat_internal(self):
+        """Internal method called by timer to send heartbeat."""
+        if self.is_connected():
+            self.send_heartbeat()
+        else:
+            self._logger.warning("Heartbeat timer fired but device not connected")
+
     def close(self):
         """Close the connection to the device."""
+        # Stop heartbeat timer first
+        self.stop_heartbeat_timer()
+
         if self.dev is not None and self.dev.isRunning():
             self.dev.abort()
             self.dev.quit()
@@ -687,9 +729,12 @@ class QtPluto(QObject):
     def send_heartbeat(self):
         """Send a heartbeat signal to the device to maintain connection."""
         if not self.is_connected():
+            self._logger.warning("Cannot send heartbeat: not connected")
             return
         _payload = [mdef.InDataType["HEARTBEAT"]]
         self.dev.send_message(_payload)
+        if self._log_heartbeat:
+            self._logger.info(f"Heartbeat sent | Time: {self._runtime:.2f}s")
 
 
 class RecursiveLeastSquares:
@@ -814,7 +859,8 @@ if __name__ == "__main__":
     from qtjedi import JediComm
 
     app = QApplication(sys.argv)
-    pluto = QtPluto(port="COM4")
+    # Initialize with automatic heartbeat enabled and logging enabled for testing
+    pluto = QtPluto(port="COM4", auto_heartbeat=True, log_heartbeat=True)
 
     # Setup signal handler for Ctrl+C
     def signal_handler(_sig, _frame):
@@ -834,14 +880,13 @@ if __name__ == "__main__":
 
     pluto.stop_sensorstream()
     pluto.get_version()
-    pluto.get_version()
-    pluto.get_version()
-    pluto.get_version()
-    pluto.get_version()
-    pluto.get_version()
-    pluto.get_version()
-    pluto.send_heartbeat()
+
+    # Note: No need to manually call send_heartbeat() anymore!
+    # The automatic heartbeat timer is already running
+
     pluto.start_sensorstream()
 
-    print("MARS device running. Press Ctrl+C to stop...")
+    print("MARS device running with automatic heartbeat...")
+    print(f"Heartbeat active: {pluto.is_heartbeat_active}")
+    print("Press Ctrl+C to stop...")
     app.exec()

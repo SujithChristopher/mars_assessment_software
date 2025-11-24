@@ -46,11 +46,13 @@ InDataType = {
 }
 
 ErrorTypes = {
-    "NOHEARTBEAT":          0x0000,
-    "ANG1MISMATCHERR":      0x0001,
-    "ANG234MISMATCHERR":    0x0002,
-    "ANG1JUMPERR":          0x0003,
-    "ANG234JUMPERR":        0x0004
+    "NOHEARTBEAT":          0x0001,
+    "ANG1MISMATCHERR":      0x0002,
+    "ANG234MISMATCHERR":    0x0004,
+    "ANG1JUMPERR":          0x0008,
+    "ANG234JUMPERR":        0x0010,
+    "ANG1LIMITERR":         0x0020,
+    "ANG234LIMITERR":       0x0040
 }
 
 MovementTypes = [
