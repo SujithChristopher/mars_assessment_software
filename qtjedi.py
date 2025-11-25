@@ -14,7 +14,7 @@ import time
 from PySide6.QtCore import (Signal, QThread)
 
 _INDEBUG = False
-_OUTDEBUG = False
+_OUTDEBUG = True
 
 class JediParsingStates(enum.Enum):
     LookingForHeader = 0
@@ -119,7 +119,9 @@ class JediComm(QThread):
                 if bytes_available > 0:
                     _waiting_bytes = self._ser.read(bytes_available)
                 # _byte = self._ser.read()
-                print(_waiting_bytes)
+                if _INDEBUG:
+                    # print(_waiting_bytes)
+                    pass
                 for _byte in _waiting_bytes:
                     if  _INDEBUG:
                         sys.stdout.write(f"{_byte} ")
@@ -156,14 +158,16 @@ class JediComm(QThread):
                     
                     # Handle full packet.
                     if self._state == JediParsingStates.FoundFullPacket:
-                        print(self._in_payload[:12])
+                        if _INDEBUG:
+                            print(self._in_payload[:12])
                         self.newdata_signal.emit(self._in_payload)
         except SerialException:
             return
 
 
 if __name__ == '__main__':
-    jedireader = JediComm("COM5")
+    jedireader = JediComm("COM4", )
     jedireader.start()
+    
     time.sleep(10)
     jedireader.abort()

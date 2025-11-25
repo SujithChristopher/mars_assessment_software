@@ -38,7 +38,7 @@ MIN_FRAMERATE_WARNING = 85  # Warn if below this
 MIN_FRAMERATE_SAFETY = 20  # Disable control if below this
 
 # Heartbeat interval (in milliseconds)
-HEARTBEAT_INTERVAL_MS = 2000  # Send heartbeat every 2 seconds (firmware expects within 5 seconds)
+HEARTBEAT_INTERVAL_MS = 5000  # Send heartbeat every 2 seconds (firmware expects within 5 seconds)
 
 class QtMars(QObject):
     """
