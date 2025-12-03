@@ -19,7 +19,7 @@ class MarsDisplayWindow(QMainWindow):
 
     def init_ui(self):
         self.setWindowTitle("MARS Sensor Data Display")
-        self.setGeometry(100, 100, 800, 600)
+        self.setGeometry(100, 100, 600, 400)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)

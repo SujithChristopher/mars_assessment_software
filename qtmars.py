@@ -34,7 +34,7 @@ ARM_WEIGHT_THRESHOLD = 10.0  # Minimum valid arm weight in kg
 LOW_HIGH_ARM_WEIGHT_ERROR_THRESHOLD = 0.5  # Threshold for arm weight range checking
 
 # Frame rate thresholds
-MIN_FRAMERATE_WARNING = 85  # Warn if below this
+MIN_FRAMERATE_WARNING = 60  # Warn if below this
 MIN_FRAMERATE_SAFETY = 20  # Disable control if below this
 
 # Heartbeat interval (in milliseconds)
