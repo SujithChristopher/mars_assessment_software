@@ -110,7 +110,7 @@ class QtMars(QObject):
 
     def _setup_logger(self) -> logging.Logger:
         """Setup logger for MARS communication."""
-        logger = logging.getLogger('QtPluto')
+        logger = logging.getLogger('QtMars')
         if not logger.handlers:
             logger.setLevel(logging.INFO)
             handler = logging.StreamHandler()
@@ -860,13 +860,13 @@ if __name__ == "__main__":
 
     app = QApplication(sys.argv)
     # Initialize with automatic heartbeat enabled and logging enabled for testing
-    pluto = QtMars(port="COM4", auto_heartbeat=True, log_heartbeat=True)
+    mars = QtMars(port="COM4", auto_heartbeat=True, log_heartbeat=True)
 
     # Setup signal handler for Ctrl+C
     def signal_handler(_sig, _frame):
         print("\nKeyboard interrupt received. Cleaning up...")
-        pluto.stop_sensorstream()
-        pluto.close()
+        mars.stop_sensorstream()
+        mars.close()
         app.quit()
         sys.exit(0)
 
@@ -878,16 +878,16 @@ if __name__ == "__main__":
     timer.timeout.connect(lambda: None)  # Wake up Python interpreter
     timer.start(500)  # Check every 500ms
 
-    pluto.stop_sensorstream()
-    pluto.get_version()
-    print(pluto.angle1)
+    mars.stop_sensorstream()
+    mars.get_version()
+    print(mars.angle1)
 
     # Note: No need to manually call send_heartbeat() anymore!
     # The automatic heartbeat timer is already running
 
-    pluto.start_sensorstream()
+    mars.start_sensorstream()
 
     print("MARS device running with automatic heartbeat...")
-    print(f"Heartbeat active: {pluto.is_heartbeat_active}")
+    print(f"Heartbeat active: {mars.is_heartbeat_active}")
     print("Press Ctrl+C to stop...")
     app.exec()

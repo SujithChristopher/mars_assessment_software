@@ -6,6 +6,7 @@
 # Email: siva82kb@gmail.com
 
 
+import struct
 import serial
 from serial import SerialException
 import enum
@@ -14,7 +15,7 @@ import time
 from PySide6.QtCore import (Signal, QThread)
 
 _INDEBUG = False
-_OUTDEBUG = True
+_OUTDEBUG = False
 
 class JediParsingStates(enum.Enum):
     LookingForHeader = 0
@@ -112,7 +113,8 @@ class JediComm(QThread):
         """
         # Read full packets.
         if self._ser.in_waiting and _INDEBUG:
-            sys.stdout.write("\n New data: ")
+            # sys.stdout.write("\n New data: ")
+            pass
         try:            
             while self._ser.in_waiting:
                 bytes_available = self._ser.in_waiting
@@ -124,7 +126,8 @@ class JediComm(QThread):
                     pass
                 for _byte in _waiting_bytes:
                     if  _INDEBUG:
-                        sys.stdout.write(f"{_byte} ")
+                        # sys.stdout.write(f"{_byte} ")
+                        pass
                     if self._state == JediParsingStates.LookingForHeader:
                         if _byte == 0xff:
                             self._state = JediParsingStates.FoundHeader1
@@ -159,15 +162,44 @@ class JediComm(QThread):
                     # Handle full packet.
                     if self._state == JediParsingStates.FoundFullPacket:
                         if _INDEBUG:
-                            print(self._in_payload[:12])
+
+                            
+                            print('S ', len(self._in_payload),struct.unpack('>H', bytearray(self._in_payload[5:7])),self._in_payload[0], self._in_payload[1], self._in_payload[2], self._in_payload[3], self._in_payload[4],*struct.unpack('>H', bytearray(self._in_payload[2:4])), )
+                            # print(struct.unpack('f', bytearray(self._in_payload[10:14])))
+                            # print(struct.unpack('f', bytearray(self._in_payload[14:18])))
+                            # print(struct.unpack('f', bytearray(self._in_payload[18:22])))
+                            # print(struct.unpack('f', bytearray(self._in_payload[6:10])))
+                            # print(struct.unpack('f', bytearray(self._in_payload[6:10])))
+                            # print(struct.unpack('f', self._in_payload[:4]))
+                            # print("Full packet received.")
+                            pass
+                            
                         self.newdata_signal.emit(self._in_payload)
+                        self._state = JediParsingStates.LookingForHeader
         except SerialException:
             return
 
 
 if __name__ == '__main__':
-    jedireader = JediComm("COM4", )
+    jedireader = JediComm("COM4")
     jedireader.start()
+    jedireader.send_message([0x05]) # Stop stream
+    jedireader.send_message([0x04]) # Start stream
+    jedireader.send_message([0x00])
+    jedireader.send_message([0x08]) # diagnostics
+    # jedireader.send_message([0x05]) # Stop stream
+
+    # jedireader.send_message([0x08])
+    # jedireader.send_message([0x80]) # diagnostics
+    # jedireader.send_message([0x80])
+    # jedireader.send_message([0x80])
+    # jedireader.send_message([0x80])
+    jedireader.send_message([0x80])
+    jedireader.send_message([0x80])
+    jedireader.send_message([0x80])
+    jedireader.send_message([0x80])
     
-    time.sleep(10)
+    time.sleep(6)
+    jedireader.send_message([0x80])
+
     jedireader.abort()

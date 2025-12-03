@@ -31,16 +31,6 @@ class MarsDisplayWindow(QMainWindow):
         self.connect_btn.clicked.connect(self.toggle_connection)
         conn_layout.addWidget(self.connect_btn)
 
-        self.start_stream_btn = QPushButton("Start Stream")
-        self.start_stream_btn.clicked.connect(self.start_stream)
-        self.start_stream_btn.setEnabled(False)
-        conn_layout.addWidget(self.start_stream_btn)
-
-        self.stop_stream_btn = QPushButton("Stop Stream")
-        self.stop_stream_btn.clicked.connect(self.stop_stream)
-        self.stop_stream_btn.setEnabled(False)
-        conn_layout.addWidget(self.stop_stream_btn)
-
         conn_layout.addStretch()
         main_layout.addLayout(conn_layout)
 
@@ -121,14 +111,30 @@ class MarsDisplayWindow(QMainWindow):
         if self.mars is None:
             port = self.port_input.text()
             try:
-                self.mars = QtMars(port=port, baudrate=115200)
+                # Create connection with auto_heartbeat disabled
+                self.mars = QtMars(port=port, baudrate=115200, auto_heartbeat=False)
+
+                # Check if connected
+                if not self.mars.is_connected():
+                    print(f"Failed to connect to {port}")
+                    self.mars = None
+                    return
+
+                print(f"✓ Connected successfully to {port}\n")
+
+                # Connect signal for data updates
                 self.mars.newdata.connect(self.update_display)
 
+                # Execute connection sequence
+                self.mars.get_version()
+                self.mars.start_sensorstream()
+                self.mars.set_diagnostic_mode()
+                self.mars.send_heartbeat()
+
+                # Update UI
                 self.connect_btn.setText("Disconnect")
-                self.start_stream_btn.setEnabled(True)
                 self.port_input.setEnabled(False)
 
-                print(f"Connected to {port}")
             except Exception as e:
                 print(f"Connection failed: {e}")
                 self.mars = None
@@ -138,7 +144,9 @@ class MarsDisplayWindow(QMainWindow):
     def disconnect_device(self):
         if self.mars:
             try:
-                self.stop_stream()
+                # Stop streaming
+                self.mars.stop_sensorstream()
+                # Close serial connection
                 if hasattr(self.mars, 'dev') and self.mars.dev:
                     self.mars.dev.abort()
                     self.mars.dev.quit()
@@ -148,32 +156,10 @@ class MarsDisplayWindow(QMainWindow):
             finally:
                 self.mars = None
                 self.connect_btn.setText("Connect")
-                self.start_stream_btn.setEnabled(False)
-                self.stop_stream_btn.setEnabled(False)
                 self.port_input.setEnabled(True)
                 for label in self.value_labels.values():
                     label.setText("--")
                 print("Disconnected")
-
-    def start_stream(self):
-        if self.mars:
-            try:
-                self.mars.start_sensorstream()
-                self.start_stream_btn.setEnabled(False)
-                self.stop_stream_btn.setEnabled(True)
-                print("Stream started")
-            except Exception as e:
-                print(f"Failed to start stream: {e}")
-
-    def stop_stream(self):
-        if self.mars:
-            try:
-                self.mars.stop_sensorstream()
-                self.start_stream_btn.setEnabled(True)
-                self.stop_stream_btn.setEnabled(False)
-                print("Stream stopped")
-            except Exception as e:
-                print(f"Failed to stop stream: {e}")
 
     def update_display(self):
         if not self.mars:
