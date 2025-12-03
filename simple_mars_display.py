@@ -2,7 +2,7 @@ import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QGridLayout, QPushButton,
                                QLineEdit, QGroupBox)
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QTimer
 from qtmars import QtMars
 
 
@@ -10,6 +10,11 @@ class MarsDisplayWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.mars = None
+
+        # Heartbeat timer - send heartbeat every 3 seconds
+        self.heartbeat_timer = QTimer()
+        self.heartbeat_timer.timeout.connect(self.send_heartbeat)
+
         self.init_ui()
 
     def init_ui(self):
@@ -107,6 +112,11 @@ class MarsDisplayWindow(QMainWindow):
 
         main_layout.addWidget(data_widget)
 
+    def send_heartbeat(self):
+        """Send heartbeat to MARS device."""
+        if self.mars and self.mars.is_connected():
+            self.mars.send_heartbeat()
+
     def toggle_connection(self):
         if self.mars is None:
             port = self.port_input.text()
@@ -131,6 +141,10 @@ class MarsDisplayWindow(QMainWindow):
                 self.mars.set_diagnostic_mode()
                 self.mars.send_heartbeat()
 
+                # Start heartbeat timer (3 seconds = 3000 ms)
+                self.heartbeat_timer.start(3000)
+                print("Heartbeat timer started (3 second interval)")
+
                 # Update UI
                 self.connect_btn.setText("Disconnect")
                 self.port_input.setEnabled(False)
@@ -144,6 +158,11 @@ class MarsDisplayWindow(QMainWindow):
     def disconnect_device(self):
         if self.mars:
             try:
+                # Stop heartbeat timer
+                if self.heartbeat_timer.isActive():
+                    self.heartbeat_timer.stop()
+                    print("Heartbeat timer stopped")
+
                 # Stop streaming
                 self.mars.stop_sensorstream()
                 # Close serial connection
