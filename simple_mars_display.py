@@ -21,6 +21,53 @@ class MarsDisplayWindow(QMainWindow):
         self.setWindowTitle("MARS Sensor Data Display")
         self.setGeometry(100, 100, 600, 400)
 
+        # Set green terminal style
+        self.setStyleSheet("""
+            QMainWindow, QWidget {
+                background-color: #001a00;
+            }
+            QLabel {
+                color: #00ff00;
+                font-family: 'Courier New', monospace;
+                font-size: 11pt;
+            }
+            QLineEdit {
+                background-color: #003300;
+                color: #00ff00;
+                border: 1px solid #00aa00;
+                padding: 3px;
+                font-family: 'Courier New', monospace;
+            }
+            QPushButton {
+                background-color: #004400;
+                color: #00ff00;
+                border: 2px solid #00aa00;
+                padding: 5px 15px;
+                font-family: 'Courier New', monospace;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #006600;
+                border-color: #00ff00;
+            }
+            QPushButton:pressed {
+                background-color: #00aa00;
+            }
+            QGroupBox {
+                color: #00ff00;
+                border: 2px solid #00aa00;
+                margin-top: 10px;
+                font-family: 'Courier New', monospace;
+                font-weight: bold;
+            }
+            QGroupBox::title {
+                color: #00ff00;
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+        """)
+
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
