@@ -157,6 +157,18 @@ class MarsDisplayWindow(QMainWindow):
             ep_layout.addWidget(label, i, 1)
         data_layout.addWidget(ep_group, 2, 1)
 
+        # Error Status (Compact)
+        error_status_group = QGroupBox("Error Status")
+        error_status_layout = QGridLayout(error_status_group)
+        error_status_layout.addWidget(QLabel("Code:"), 0, 0)
+        self.error_code_label = QLabel("--")
+        error_status_layout.addWidget(self.error_code_label, 0, 1)
+        error_status_layout.addWidget(QLabel("Desc:"), 0, 2)
+        self.error_desc_label = QLabel("None")
+        self.error_desc_label.setWordWrap(True)
+        error_status_layout.addWidget(self.error_desc_label, 0, 3)
+        data_layout.addWidget(error_status_group, 3, 0, 1, 2)
+
         main_layout.addWidget(data_widget)
 
     def send_heartbeat(self):
@@ -265,6 +277,17 @@ class MarsDisplayWindow(QMainWindow):
             self.value_labels["ep_x"].setText(f"{ep_x:.4f}")
             self.value_labels["ep_y"].setText(f"{ep_y:.4f}")
             self.value_labels["ep_z"].setText(f"{ep_z:.4f}")
+
+            # Update error status
+            error_code = self.mars.error
+            error_string = getattr(self.mars, 'error_string', 'Unknown')
+            self.error_code_label.setText(str(error_code))
+            if error_code == 0:
+                self.error_desc_label.setText("No Error")
+                self.error_desc_label.setStyleSheet("color: #00ff00;")
+            else:
+                self.error_desc_label.setText(str(error_string))
+                self.error_desc_label.setStyleSheet("color: #ff0000;")
 
         except Exception as e:
             print(f"Error updating display: {e}")
