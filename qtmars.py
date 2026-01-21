@@ -58,7 +58,7 @@ class QtMars(QObject):
         self.prevstatedata = []
         self._packetnumber = 0
         self._runtime = 0.0
-        self._prevruntime = 0.0
+        self._prevruntime = 0.0 
         self.currsensordata = []
         # Other variables.
         self._preverrstatus = 0

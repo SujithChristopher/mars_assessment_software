@@ -1,7 +1,7 @@
 import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QGridLayout, QPushButton,
-                               QLineEdit, QGroupBox)
+                               QLineEdit, QGroupBox, QComboBox, QSlider)
 from PySide6.QtCore import Qt, QTimer
 from qtmars import QtMars
 
@@ -66,13 +66,37 @@ class MarsDisplayWindow(QMainWindow):
                 left: 10px;
                 padding: 0 5px;
             }
+            QSlider::groove:vertical {
+                background-color: #00aa00;
+                border-radius: 3px;
+                width: 4px;
+                margin: 0px;
+            }
+            QSlider::handle:vertical {
+                background-color: #00ff00;
+                border: 2px solid #00aa00;
+                height: 18px;
+                margin: -8px -10px;
+                border-radius: 3px;
+            }
+            QSlider::handle:vertical:hover {
+                background-color: #00ff00;
+                border: 2px solid #00ff00;
+            }
+            QSlider::handle:vertical:pressed {
+                background-color: #00aa00;
+            }
+            QSlider::sub-page:vertical {
+                background-color: #00ff00;
+                border-radius: 3px;
+            }
         """)
 
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
 
-        # Connection controls
+        # Connection controls (Top)
         conn_layout = QHBoxLayout()
         conn_layout.addWidget(QLabel("COM Port:"))
         self.port_input = QLineEdit("COM4")
@@ -86,7 +110,11 @@ class MarsDisplayWindow(QMainWindow):
         conn_layout.addStretch()
         main_layout.addLayout(conn_layout)
 
-        # Data display
+        # Data display with control panel on the right
+        data_container = QWidget()
+        data_container_layout = QHBoxLayout(data_container)
+
+        # Left side: Data display grid
         data_widget = QWidget()
         data_layout = QGridLayout(data_widget)
 
@@ -169,7 +197,61 @@ class MarsDisplayWindow(QMainWindow):
         error_status_layout.addWidget(self.error_desc_label, 0, 3)
         data_layout.addWidget(error_status_group, 3, 0, 1, 2)
 
-        main_layout.addWidget(data_widget)
+        # Add data grid to left side of container
+        data_container_layout.addWidget(data_widget, 1)
+
+        # Right side: Control Panel
+        control_panel_widget = QWidget()
+        control_panel_layout = QVBoxLayout(control_panel_widget)
+
+        # Limb Selection
+        limb_layout = QHBoxLayout()
+        limb_layout.addWidget(QLabel("Limb:"))
+        self.limb_combo = QComboBox()
+        self.limb_combo.addItems(["LEFT", "RIGHT"])
+        self.limb_combo.currentTextChanged.connect(self.on_limb_changed)
+        limb_layout.addWidget(self.limb_combo)
+        control_panel_layout.addLayout(limb_layout)
+
+        # Calibrate Button
+        self.calibrate_btn = QPushButton("Calibrate")
+        self.calibrate_btn.clicked.connect(self.on_calibrate)
+        control_panel_layout.addWidget(self.calibrate_btn)
+
+        control_panel_layout.addSpacing(20)
+
+        # Position Target
+        pos_label = QLabel("Position Target:")
+        control_panel_layout.addWidget(pos_label)
+
+        # Slider
+        self.pos_target_slider = QSlider(Qt.Orientation.Vertical)
+        self.pos_target_slider.setMinimum(0)
+        self.pos_target_slider.setMaximum(100)
+        self.pos_target_slider.setSingleStep(5)
+        self.pos_target_slider.setPageStep(5)
+        self.pos_target_slider.setValue(0)
+        self.pos_target_slider.setMinimumHeight(200)
+        self.pos_target_slider.setMaximumWidth(80)
+        self.pos_target_slider.setTickPosition(QSlider.TickPosition.TicksBothSides)
+        self.pos_target_slider.setTickInterval(10)
+        control_panel_layout.addWidget(self.pos_target_slider)
+
+        # Value display
+        self.pos_target_label = QLabel("0")
+        self.pos_target_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.pos_target_slider.valueChanged.connect(self.on_slider_value_changed)
+        control_panel_layout.addWidget(self.pos_target_label)
+
+        # Set Target Button
+        self.set_target_btn = QPushButton("Set Target")
+        self.set_target_btn.clicked.connect(self.on_set_target)
+        control_panel_layout.addWidget(self.set_target_btn)
+
+        control_panel_layout.addStretch()
+        data_container_layout.addWidget(control_panel_widget, 0)
+
+        main_layout.addWidget(data_container)
 
     def send_heartbeat(self):
         """Send heartbeat to MARS device."""
@@ -238,6 +320,53 @@ class MarsDisplayWindow(QMainWindow):
                 for label in self.value_labels.values():
                     label.setText("--")
                 print("Disconnected")
+
+    def on_limb_changed(self, limb):
+        """Handle limb selection change."""
+        if self.mars and self.mars.is_connected():
+            try:
+                self.mars.set_limb(limb)
+                print(f"Limb set to: {limb}")
+            except Exception as e:
+                print(f"Error setting limb: {e}")
+
+    def on_calibrate(self):
+        """Handle calibrate button click."""
+        if self.mars and self.mars.is_connected():
+            try:
+                self.mars.calibrate()
+                print("Calibration command sent")
+            except Exception as e:
+                print(f"Error during calibration: {e}")
+
+    def on_slider_value_changed(self, value):
+        """Update position target display when slider changes."""
+        # Slider goes from 0 to 100, but we display 0 to -100
+        display_value = -value
+        self.pos_target_label.setText(str(display_value))
+
+    def on_set_target(self):
+        """Handle set target button click."""
+        if self.mars and self.mars.is_connected():
+            try:
+                slider_value = self.pos_target_slider.value()
+                target_value = -slider_value  # Convert to negative range
+
+                # Set control type to POSITION
+                self.mars.set_control_type("POSITION")
+                # Delay before setting target to allow device to process control type change
+                QTimer.singleShot(200, lambda: self._set_target_value(target_value))
+                print(f"Position control enabled, target set to: {target_value}")
+            except Exception as e:
+                print(f"Error setting target: {e}")
+
+    def _set_target_value(self, target_value):
+        """Helper method to set target value after delay."""
+        if self.mars and self.mars.is_connected():
+            try:
+                self.mars.set_control_target(target_value)
+            except Exception as e:
+                print(f"Error setting control target: {e}")
 
     def update_display(self):
         if not self.mars:

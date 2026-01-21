@@ -38,6 +38,12 @@ For standalone testing of the JEDI communication layer:
 python qtjedi.py
 ```
 
+**Simple MARS Display (Minimal UI):**
+A lightweight PySide6 application for real-time sensor data visualization and basic device control:
+```bash
+python simple_mars_display.py
+```
+
 **Unity Application:**
 Open the `MARS-HOMER` directory as a Unity project in Unity Editor 2023.2.20f1 or later.
 
@@ -118,6 +124,28 @@ MARS Embedded Device (Arduino firmware in marsfire/)
 - Qt Designer UI file for the main assessment interface
 - Window: "PLUTO Full Assessment" (1200x607 fixed size)
 - Convert to Python using: `pyside6-uic ui/plutofullassessment.ui -o ui_plutofullassessment.py`
+
+**simple_mars_display.py - Minimal Sensor Display Application**
+- Lightweight PySide6 GUI for real-time MARS device monitoring and control
+- Minimal dependencies: only requires QtMars, PySide6, and pyserial
+- **Layout**:
+  - Top bar: COM port selection and Connect/Disconnect button
+  - Left side: Data grid with sensor readings (Joint Angles, IMU Angles, Control Parameters, Error Terms, Device Status, Endpoint Position, Error Status)
+  - Right side: Control panel (Limb selector, Calibrate button, Position Target vertical slider with modern styling, Set Target button)
+- **Features**:
+  - Real-time sensor data streaming from MARS device
+  - Error status display with color coding (green for no errors, red for errors)
+  - Modern vertical slider with tick marks on both sides for position targeting (range 0 to -100, steps of 5)
+  - Automatic heartbeat transmission (every 3 seconds)
+  - Device disconnection handling with status reset
+  - Responsive control panel for device configuration
+  - Green terminal-style UI matching the assessment application theme
+- **Control Functions**:
+  - Limb selection (LEFT/RIGHT) with automatic device update
+  - Calibration command execution
+  - Position control with configurable targets via slider
+  - Control type and target value setting with built-in delay for device synchronization
+- **Ideal for**: Quick device testing, real-time sensor monitoring, device control without full assessment workflows
 
 ### Communication Protocol Details
 
