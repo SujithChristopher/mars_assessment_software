@@ -87,6 +87,17 @@ MarsSensorDataNumber = {
 INVALID_TARGET = 999.0
 CALIB_ANGLE_LIMIT = 50.0
 
+# Workspace boundaries for AROM assessments (meters)
+WORKSPACE_Y_MIN = 0.145  # AP minimum
+WORKSPACE_Y_MAX = 0.765  # AP maximum
+WORKSPACE_Z_MIN = 0.010  # ML minimum
+WORKSPACE_Z_MAX = 0.490  # ML maximum
+WORKSPACE_Y_CENTER = 0.455
+WORKSPACE_Z_CENTER = 0.250
+
+# Distance threshold for trajectory point collection (meters)
+AROM_DIST_THRESHOLD = 0.01
+
 
 def get_name(def_dict: dict[str, int], code: int) -> str | None:
     """Gets the name corresponding to the given code from the definition  dictionary.
