@@ -209,6 +209,7 @@ class MarsDisplayWindow(QMainWindow):
         limb_layout.addWidget(QLabel("Limb:"))
         self.limb_combo = QComboBox()
         self.limb_combo.addItems(["LEFT", "RIGHT"])
+        self.limb_combo.setCurrentIndex(0)
         self.limb_combo.currentTextChanged.connect(self.on_limb_changed)
         limb_layout.addWidget(self.limb_combo)
         control_panel_layout.addLayout(limb_layout)

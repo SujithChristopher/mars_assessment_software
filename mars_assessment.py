@@ -3,7 +3,7 @@ import math
 from typing import List, Tuple
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QPushButton, QLabel, QLineEdit,
-                               QGroupBox, QFrame, QSizePolicy)
+                               QGroupBox, QFrame, QSizePolicy, QComboBox)
 from PySide6.QtCore import Qt, QTimer, QPointF, Signal, Slot
 from PySide6.QtGui import QPainter, QPen, QColor, QFont, QBrush
 
@@ -202,6 +202,28 @@ class MarsAssessmentWindow(QMainWindow):
         
         control_layout.addWidget(conn_group)
 
+        # Device Configuration Group
+        config_group = QGroupBox("Configuration")
+        config_vbox = QVBoxLayout(config_group)
+
+        limb_hbox = QHBoxLayout()
+        limb_hbox.addWidget(QLabel("Limb:"))
+        self.limb_combo = QComboBox()
+        self.limb_combo.addItems(["LEFT", "RIGHT"])
+        self.limb_combo.currentTextChanged.connect(self.on_limb_changed)
+        limb_hbox.addWidget(self.limb_combo)
+        config_vbox.addLayout(limb_hbox)
+
+        self.calibrate_btn = QPushButton("Calibrate")
+        self.calibrate_btn.clicked.connect(self.on_calibrate)
+        config_vbox.addWidget(self.calibrate_btn)
+
+        self.set_plane_btn = QPushButton("Set Plane (90°)")
+        self.set_plane_btn.clicked.connect(self.on_set_plane)
+        config_vbox.addWidget(self.set_plane_btn)
+
+        control_layout.addWidget(config_group)
+
         # Movement Tracking Group
         track_group = QGroupBox("Workspace Assessment")
         track_vbox = QVBoxLayout(track_group)
@@ -322,6 +344,44 @@ class MarsAssessmentWindow(QMainWindow):
                 self.canvas.update()
         except ValueError:
             pass
+
+    def on_limb_changed(self, limb):
+        """Handle limb selection change."""
+        if self.mars and self.mars.is_connected():
+            try:
+                self.mars.set_limb(limb)
+                print(f"Limb set to: {limb}")
+            except Exception as e:
+                print(f"Error setting limb: {e}")
+
+    def on_calibrate(self):
+        """Handle calibrate button click."""
+        if self.mars and self.mars.is_connected():
+            try:
+                self.mars.calibrate()
+                print("Calibration command sent")
+            except Exception as e:
+                print(f"Error during calibration: {e}")
+
+    def on_set_plane(self):
+        """Handle set plane button click - sets robot to 90 degrees."""
+        if self.mars and self.mars.is_connected():
+            try:
+                # Set control type to POSITION
+                self.mars.set_control_type("POSITION")
+                # Delay before setting target to allow device to process control type change
+                QTimer.singleShot(200, lambda: self._set_plane_target())
+                print("Position control enabled, setting plane to 90 degrees")
+            except Exception as e:
+                print(f"Error setting plane: {e}")
+
+    def _set_plane_target(self):
+        """Helper method to set plane target value after delay."""
+        if self.mars and self.mars.is_connected():
+            try:
+                self.mars.set_control_target(90.0)
+            except Exception as e:
+                print(f"Error setting plane target: {e}")
 
     @Slot()
     def update_robot_data(self):
