@@ -201,8 +201,6 @@ class MarsAssessmentLauncher(QMainWindow):
 
         main_layout.addWidget(assess_group)
 
-        main_layout.addStretch()
-
     def create_assessment_button(self, title: str, subtitle: str, callback) -> QPushButton:
         """Create a styled assessment button with title and subtitle.
 
@@ -215,17 +213,29 @@ class MarsAssessmentLauncher(QMainWindow):
             QPushButton configured with layout
         """
         btn = QPushButton(f"{title}\n{subtitle}")
-        btn.setMinimumHeight(70)
+        btn.setMinimumHeight(60)
+        btn.setMaximumHeight(65)
         btn.clicked.connect(callback)
         btn.setEnabled(False)
         btn.setStyleSheet("""
             QPushButton {
                 text-align: center;
-                padding: 15px;
-                font-size: 11pt;
+                padding: 10px 15px;
+                font-size: 10pt;
+                background-color: #2196F3;
+                color: white;
+                border: none;
+                border-radius: 5px;
             }
             QPushButton:hover {
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+                background-color: #1976D2;
+            }
+            QPushButton:pressed {
+                background-color: #0D47A1;
+            }
+            QPushButton:disabled {
+                background-color: #BDBDBD;
+                color: white;
             }
         """)
         return btn
@@ -352,24 +362,32 @@ class MarsAssessmentLauncher(QMainWindow):
             try:
                 self.mars.calibrate()
                 QMessageBox.information(self, "Calibration",
-                                      "Calibration command sent.\n"
-                                      "Please follow device calibration procedure.")
+                                      "Calibration command sent.\n\n"
+                                      "Move the device to the calibration positions:\n"
+                                      "1. Fully extended position\n"
+                                      "2. Press device button to confirm\n\n"
+                                      "Calibration is required before position control.")
                 print("Calibration command sent")
             except Exception as e:
                 QMessageBox.warning(self, "Command Error",
                                   f"Calibration failed: {str(e)}")
 
     def on_set_plane(self):
-        """Handle set plane button click - sets robot to 90 degrees."""
+        """Handle set plane button click - sets robot to -90 degrees.
+
+        Note: Device should be calibrated before using this function.
+        The robot will move to -90 degrees position (vertical plane).
+        Target value is negative following mars_diagnostics.py convention.
+        """
         if self.mars and self.mars.is_connected():
             try:
-                # Set control type to POSITION
+                # Set control type to POSITION (exactly like mars_diagnostics.py)
                 self.mars.set_control_type("POSITION")
 
-                # Delay before setting target to allow device to process
+                # Delay before setting target to allow device to process control type change
                 QTimer.singleShot(200, self._set_plane_target)
 
-                print("Position control enabled, setting plane to 90 degrees")
+                print("Position control enabled, target set to: -90")
             except Exception as e:
                 QMessageBox.warning(self, "Command Error",
                                   f"Failed to set plane: {str(e)}")
@@ -378,11 +396,11 @@ class MarsAssessmentLauncher(QMainWindow):
         """Helper to set plane target value after delay."""
         if self.mars and self.mars.is_connected():
             try:
-                self.mars.set_control_target(90.0)
-                print("Plane target set to 90 degrees")
+                # Target value needs to be negative (like in mars_diagnostics.py)
+                self.mars.set_control_target(-90.0)
+                print("Plane target value sent: -90.0")
             except Exception as e:
-                QMessageBox.warning(self, "Command Error",
-                                  f"Failed to set plane target: {str(e)}")
+                print(f"Error setting control target: {e}")
 
     def launch_ap_assessment(self):
         """Launch AP (Anterior-Posterior) assessment window."""

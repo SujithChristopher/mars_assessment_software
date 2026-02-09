@@ -47,6 +47,15 @@ python simple_mars_display.py
 **Unity Application:**
 Open the `MARS-HOMER` directory as a Unity project in Unity Editor 2023.2.20f1 or later.
 
+### Running Python Scripts
+
+**CRITICAL:** Always use `uv` to run Python scripts in this project:
+```bash
+uv run python script_name.py
+uv run python -m py_compile file.py  # Syntax check
+uv run python mars_assessment.py     # Launch assessment app
+```
+
 ### Git Submodules
 
 The `marsfire` directory is a git submodule containing the Arduino firmware for the MARS device.
@@ -248,6 +257,22 @@ The Python app UI is designed in Qt Designer (.ui files). To modify:
 3. Convert to Python: `pyside6-uic ui/plutofullassessment.ui -o ui_plutofullassessment.py`
 4. Import and use in main application code
 
+### PySide6 UI Guidelines
+
+**Window Sizing:**
+- Launcher windows: minimum 650x700 to fit all controls
+- Assessment windows: 850x900 (800x800 canvas + controls)
+
+**StyleSheet Best Practices:**
+- Always define `QPushButton:disabled` state with explicit colors
+- Without disabled colors, grayed-out buttons may appear invisible
+- Example: `QPushButton:disabled { background-color: #BDBDBD; color: white; }`
+
+**Layout Gotchas:**
+- Avoid `layout.addStretch()` at end of VBoxLayout - pushes content off-screen
+- Use explicit `setMinimumHeight()` and `setMaximumHeight()` for buttons
+- Set `setFixedSize()` for windows to prevent layout calculation issues
+
 ### Unity Application (Unity Editor)
 
 The Unity app UI uses Unity's built-in UI system (Canvas, UI elements). To modify:
@@ -344,8 +369,9 @@ The `QtPluto` class provides comprehensive control commands for the MARS device:
 # Set control mode
 pluto.set_control_type("IMPEDANCE")  # Options: "NONE", "POSITION", "VELOCITY", "IMPEDANCE", "TORQUE"
 
-# Set control target value
-pluto.set_control_target(45.0)  # Target value in appropriate units
+# Set control target value - USE NEGATIVE VALUES FOR POSITION CONTROL
+pluto.set_control_target(-90.0)  # IMPORTANT: Position targets must be negative!
+# Example: To move to 90 degrees, use -90.0 (not 90.0)
 
 # Calibrate device
 pluto.calibrate()
@@ -361,6 +387,22 @@ pluto.reset_packet_number()
 ```
 
 **Important**: All control commands automatically check connection status and log actions.
+
+### Position Control Sequence
+
+To move the robot to a specific position angle:
+
+```python
+# 1. Set control type to POSITION
+mars.set_control_type("POSITION")
+
+# 2. Wait 200ms for device to process control type change
+QTimer.singleShot(200, lambda: mars.set_control_target(-90.0))
+
+# 3. Target value MUST BE NEGATIVE (e.g., -90.0 for 90 degrees)
+```
+
+**Important:** Always use negative values for position targets. This is the MARS convention (see `mars_diagnostics.py` for reference).
 
 ### Handling New Packet Types
 
@@ -443,6 +485,33 @@ void HandleNewData()
 
 Sensor data is parsed by `MarsComm.parseByteArray()` and stored in static fields like `currAngles`, `currVelocities`, etc. The count depends on the data type as defined in `SENSORNUMBER`.
 
+## Assessment Application Architecture
+
+The redesigned assessment system (`mars_assessment.py`) provides professional clinical workspace assessments:
+
+### File Structure
+- `mars_assessment.py` - Main launcher (modal window manager)
+- `mars_arom_data.py` - Data model with CSV I/O and 5% extreme averaging
+- `assessment_base.py` - Base class with state machine and canvas widget
+- `assessment_ap.py` - Anterior-Posterior assessment
+- `assessment_ml.py` - Medio-Lateral assessment
+- `assessment_mlap.py` - Combined (full workspace) assessment
+
+### Key Patterns
+- **State Machine**: INIT → ASSESSROM → ADJUST → DONE
+- **Modal Windows**: Assessment windows block launcher using `setWindowModality(Qt.ApplicationModal)`
+- **Boundary Detection**: 5% statistical extreme averaging (not simple min/max)
+- **Data Storage**: `data/session{N}-{date}/{movement}-{date}-{time}.csv`
+- **Limb Synchronization**: Must set `assessment_window.canvas.limb_type` from launcher's limb combo
+
+### Coordinate Transformation
+```python
+# Robot coordinates (meters) → Screen coordinates (pixels)
+SCALE_X = SCALE_Y = 10.0  # Matches Unity
+x_screen = 400 + z_rel * SCALE_X * 1000  # Flip for left limb
+y_screen = 400 - y_rel * SCALE_Y * 1000  # Screen Y goes down
+```
+
 ## Important Notes
 
 ### Both Applications
@@ -456,6 +525,7 @@ Sensor data is parsed by `MarsComm.parseByteArray()` and stored in static fields
 
 - **Full Feature Parity**: Python implementation now has feature parity with Unity version
 - **Named Properties**: Use named properties (e.g., `angle1`, `force`) instead of raw list indices for better code readability
+- **Endpoint Position**: `ep_pos_in_plane` returns 3-tuple `(x, y, z)` - always unpack all three: `_, y, z = mars.ep_pos_in_plane`
 - **Safety Features**: Automatic frame rate monitoring with control disabling on low frame rates
 - **Arm Weight Estimation**: Built-in RLS estimator for real-time arm weight calculation
 - **Comprehensive Logging**: All device communication and errors are logged via Python logging module
