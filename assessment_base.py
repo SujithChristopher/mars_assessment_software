@@ -69,21 +69,35 @@ class WorkspaceAssessmentCanvas(QWidget):
         Returns:
             (x_screen, y_screen) tuple in pixels
         """
-        # Center point in robot coordinates
-        y_center = mdef.WORKSPACE_Y_CENTER
+        # Workspace ranges (matching Unity's MarsDefs)
+        z_min = mdef.WORKSPACE_Z_MIN
+        z_max = mdef.WORKSPACE_Z_MAX
+        y_min = mdef.WORKSPACE_Y_MIN
+        y_max = mdef.WORKSPACE_Y_MAX
         z_center = mdef.WORKSPACE_Z_CENTER
+        y_center = mdef.WORKSPACE_Y_CENTER
 
-        # Convert to centered coordinates
-        y_rel = y - y_center
-        z_rel = z - z_center
+        # Normalize coordinates (Unity approach) - ranges from -0.5 to 0.5 approximately
+        z_normalized = (z - z_center) / (z_max - z_min)
+        y_normalized = (y - y_center) / (y_max - y_min)
+
+        # Apply Unity scale factor (10.0)
+        unity_x = z_normalized * self.SCALE_X
+        unity_y = y_normalized * self.SCALE_Y
+
+        # Convert Unity units to screen pixels
+        # Canvas is 800x800, center at 400,400
+        # Unity range of ~-5 to +5 should map to screen pixels
+        # Using 60 pixels per Unity unit (10 units * 60 = 600 pixels for workspace)
+        pixels_per_unity_unit = 60.0
 
         # Apply scale and flip for left limb
         if self.limb_type == "LEFT":
-            x_screen = 400 - z_rel * self.SCALE_X * 1000  # Flip X for left arm
+            x_screen = 400 - unity_x * pixels_per_unity_unit
         else:
-            x_screen = 400 + z_rel * self.SCALE_X * 1000
+            x_screen = 400 + unity_x * pixels_per_unity_unit
 
-        y_screen = 400 - y_rel * self.SCALE_Y * 1000  # Flip Y (screen coords go down)
+        y_screen = 400 - unity_y * pixels_per_unity_unit  # Flip Y (screen coords go down)
 
         return (int(x_screen), int(y_screen))
 
@@ -97,18 +111,33 @@ class WorkspaceAssessmentCanvas(QWidget):
         Returns:
             (y, z) tuple in meters
         """
-        y_center = mdef.WORKSPACE_Y_CENTER
+        # Workspace ranges
+        z_min = mdef.WORKSPACE_Z_MIN
+        z_max = mdef.WORKSPACE_Z_MAX
+        y_min = mdef.WORKSPACE_Y_MIN
+        y_max = mdef.WORKSPACE_Y_MAX
         z_center = mdef.WORKSPACE_Z_CENTER
+        y_center = mdef.WORKSPACE_Y_CENTER
 
-        # Convert back to robot coordinates
-        y_rel = -(y_screen - 400) / (self.SCALE_Y * 1000)
+        pixels_per_unity_unit = 60.0
+
+        # Convert screen pixels to Unity units
+        unity_y = -(y_screen - 400) / pixels_per_unity_unit
 
         if self.limb_type == "LEFT":
-            z_rel = -(x_screen - 400) / (self.SCALE_X * 1000)
+            unity_x = -(x_screen - 400) / pixels_per_unity_unit
         else:
-            z_rel = (x_screen - 400) / (self.SCALE_X * 1000)
+            unity_x = (x_screen - 400) / pixels_per_unity_unit
 
-        return (y_center + y_rel, z_center + z_rel)
+        # Convert Unity units to normalized coordinates
+        z_normalized = unity_x / self.SCALE_X
+        y_normalized = unity_y / self.SCALE_Y
+
+        # Denormalize to robot coordinates
+        z = z_center + z_normalized * (z_max - z_min)
+        y = y_center + y_normalized * (y_max - y_min)
+
+        return (y, z)
 
     def paintEvent(self, event):
         """Paint canvas layers."""
@@ -437,6 +466,14 @@ class BaseAssessmentWindow(QMainWindow):
 
         # Update canvas current position
         self.canvas.current_pos = (y, z)
+
+        # Debug: Print position periodically (every 30 frames = ~1 second)
+        if not hasattr(self, '_debug_counter'):
+            self._debug_counter = 0
+        self._debug_counter += 1
+        if self._debug_counter % 30 == 0:
+            screen_pos = self.canvas.robot_to_screen(y, z)
+            print(f"Robot pos: ({y:.3f}, {z:.3f}) → Screen pos: {screen_pos}")
 
         # If in ASSESSROM state, add to trajectory
         if self.state == AromAssessState.ASSESSROM:
