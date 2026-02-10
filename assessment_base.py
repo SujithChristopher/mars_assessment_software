@@ -42,10 +42,11 @@ class WorkspaceAssessmentCanvas(QWidget):
     SCALE_X = 10.0  # Matches Unity implementation
     SCALE_Y = 10.0
 
-    def __init__(self, parent=None):
+    def __init__(self, movement_type="MLAP", parent=None):
         super().__init__(parent)
         self.setMinimumSize(800, 800)
         self.setMaximumSize(800, 800)
+        self.movement_type = movement_type  # AP, ML, or MLAP
 
         # Data to visualize
         self.current_pos = None  # (y, z) in meters
@@ -155,7 +156,7 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # Previous AROM (light blue, semi-transparent)
         if self.previous_arom is not None:
-            self._draw_arom_box(painter, self.previous_arom, QColor(100, 150, 255, 100))
+            self._draw_arom_boundaries(painter, self.previous_arom, QColor(100, 150, 255, 100))
 
         # Trajectory (gray line)
         if len(self.trajectory) > 1:
@@ -163,7 +164,7 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # Current AROM (red with handles)
         if self.current_arom is not None and self.state == AromAssessState.ADJUST:
-            self._draw_arom_box(painter, self.current_arom, QColor(255, 50, 50, 200), True)
+            self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 200), True)
 
         # Current position cursor (green circle)
         if self.current_pos is not None:
@@ -207,13 +208,87 @@ class WorkspaceAssessmentCanvas(QWidget):
             p2 = self.robot_to_screen(self.trajectory[i + 1][0], self.trajectory[i + 1][1])
             painter.drawLine(p1[0], p1[1], p2[0], p2[1])
 
-    def _draw_arom_box(self, painter, arom: MarsArom, color: QColor, with_handles: bool = False):
-        """Draw AROM boundary box.
+    def _draw_arom_boundaries(self, painter, arom: MarsArom, color: QColor, with_handles: bool = False):
+        """Draw AROM boundaries based on movement type.
 
         Args:
             painter: QPainter instance
             arom: MarsArom data
-            color: Box color
+            color: Boundary color
+            with_handles: Whether to draw adjustment handles
+        """
+        if self.movement_type == "AP":
+            self._draw_ap_boundaries(painter, arom, color, with_handles)
+        elif self.movement_type == "ML":
+            self._draw_ml_boundaries(painter, arom, color, with_handles)
+        else:  # MLAP
+            self._draw_mlap_boundaries(painter, arom, color, with_handles)
+
+    def _draw_ap_boundaries(self, painter, arom: MarsArom, color: QColor, with_handles: bool = False):
+        """Draw AP boundaries as two horizontal lines.
+
+        Args:
+            painter: QPainter instance
+            arom: MarsArom data
+            color: Line color
+            with_handles: Whether to draw adjustment handles
+        """
+        if arom.adjusted_top is None or arom.adjusted_bottom is None:
+            return
+
+        painter.setPen(QPen(color, 2))
+
+        # Top line (max Y)
+        top_y_screen = self.robot_to_screen(arom.adjusted_top[0], 0)[1]
+        painter.drawLine(0, top_y_screen, 800, top_y_screen)
+
+        # Bottom line (min Y)
+        bottom_y_screen = self.robot_to_screen(arom.adjusted_bottom[0], 0)[1]
+        painter.drawLine(0, bottom_y_screen, 800, bottom_y_screen)
+
+        # Handles at center if requested
+        if with_handles:
+            handle_size = 10
+            painter.setBrush(QBrush(color))
+            painter.drawEllipse(395, top_y_screen - handle_size // 2, handle_size, handle_size)
+            painter.drawEllipse(395, bottom_y_screen - handle_size // 2, handle_size, handle_size)
+
+    def _draw_ml_boundaries(self, painter, arom: MarsArom, color: QColor, with_handles: bool = False):
+        """Draw ML boundaries as two vertical lines.
+
+        Args:
+            painter: QPainter instance
+            arom: MarsArom data
+            color: Line color
+            with_handles: Whether to draw adjustment handles
+        """
+        if arom.adjusted_left is None or arom.adjusted_right is None:
+            return
+
+        painter.setPen(QPen(color, 2))
+
+        # Left line (min Z)
+        left_x_screen = self.robot_to_screen(0, arom.adjusted_left[1])[0]
+        painter.drawLine(left_x_screen, 0, left_x_screen, 800)
+
+        # Right line (max Z)
+        right_x_screen = self.robot_to_screen(0, arom.adjusted_right[1])[0]
+        painter.drawLine(right_x_screen, 0, right_x_screen, 800)
+
+        # Handles at center if requested
+        if with_handles:
+            handle_size = 10
+            painter.setBrush(QBrush(color))
+            painter.drawEllipse(left_x_screen - handle_size // 2, 395, handle_size, handle_size)
+            painter.drawEllipse(right_x_screen - handle_size // 2, 395, handle_size, handle_size)
+
+    def _draw_mlap_boundaries(self, painter, arom: MarsArom, color: QColor, with_handles: bool = False):
+        """Draw MLAP boundaries as a quadrilateral.
+
+        Args:
+            painter: QPainter instance
+            arom: MarsArom data
+            color: Quadrilateral color
             with_handles: Whether to draw adjustment handles
         """
         if arom.adjusted_top is None or arom.adjusted_bottom is None:
@@ -223,46 +298,26 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         painter.setPen(QPen(color, 2))
 
-        # Get screen coordinates for corners
+        # Get four corners
         top_left = self.robot_to_screen(arom.adjusted_top[0], arom.adjusted_left[1])
         top_right = self.robot_to_screen(arom.adjusted_top[0], arom.adjusted_right[1])
         bottom_left = self.robot_to_screen(arom.adjusted_bottom[0], arom.adjusted_left[1])
         bottom_right = self.robot_to_screen(arom.adjusted_bottom[0], arom.adjusted_right[1])
 
-        # Draw box
-        painter.drawLine(top_left[0], top_left[1], top_right[0], top_right[1])  # Top
-        painter.drawLine(bottom_left[0], bottom_left[1], bottom_right[0], bottom_right[1])  # Bottom
-        painter.drawLine(top_left[0], top_left[1], bottom_left[0], bottom_left[1])  # Left
-        painter.drawLine(top_right[0], top_right[1], bottom_right[0], bottom_right[1])  # Right
+        # Draw quadrilateral
+        painter.drawLine(top_left[0], top_left[1], top_right[0], top_right[1])
+        painter.drawLine(top_right[0], top_right[1], bottom_right[0], bottom_right[1])
+        painter.drawLine(bottom_right[0], bottom_right[1], bottom_left[0], bottom_left[1])
+        painter.drawLine(bottom_left[0], bottom_left[1], top_left[0], top_left[1])
 
-        # Draw handles if requested
+        # Handles at corners if requested
         if with_handles:
             handle_size = 10
             painter.setBrush(QBrush(color))
-
-            # Top handle
-            top_center = ((top_left[0] + top_right[0]) // 2, top_left[1])
-            painter.drawEllipse(top_center[0] - handle_size // 2,
-                              top_center[1] - handle_size // 2,
-                              handle_size, handle_size)
-
-            # Bottom handle
-            bottom_center = ((bottom_left[0] + bottom_right[0]) // 2, bottom_left[1])
-            painter.drawEllipse(bottom_center[0] - handle_size // 2,
-                              bottom_center[1] - handle_size // 2,
-                              handle_size, handle_size)
-
-            # Left handle
-            left_center = (top_left[0], (top_left[1] + bottom_left[1]) // 2)
-            painter.drawEllipse(left_center[0] - handle_size // 2,
-                              left_center[1] - handle_size // 2,
-                              handle_size, handle_size)
-
-            # Right handle
-            right_center = (top_right[0], (top_right[1] + bottom_right[1]) // 2)
-            painter.drawEllipse(right_center[0] - handle_size // 2,
-                              right_center[1] - handle_size // 2,
-                              handle_size, handle_size)
+            for corner in [top_left, top_right, bottom_left, bottom_right]:
+                painter.drawEllipse(corner[0] - handle_size // 2,
+                                  corner[1] - handle_size // 2,
+                                  handle_size, handle_size)
 
     def _draw_cursor(self, painter):
         """Draw current position cursor."""
@@ -315,7 +370,7 @@ class BaseAssessmentWindow(QMainWindow):
         self.setWindowModality(Qt.ApplicationModal)
 
         # UI
-        self.canvas = WorkspaceAssessmentCanvas(self)
+        self.canvas = WorkspaceAssessmentCanvas(self.movement_type, self)
         self.init_ui()
 
         # Connect signals
