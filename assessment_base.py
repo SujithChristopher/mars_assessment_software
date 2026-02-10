@@ -57,7 +57,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         # UI state
         self.state = AromAssessState.INIT
         self.adjust_state = AromAdjustState.NONE
-        self.instruction_text = "Press 'Start Assessment' to begin"
+        self.instruction_text = "Press robot button to begin"
 
     def robot_to_screen(self, y: float, z: float) -> tuple:
         """Convert robot coordinates (meters) to screen coordinates (pixels).
@@ -352,6 +352,7 @@ class BaseAssessmentWindow(QMainWindow):
 
         self.start_btn = QPushButton("Start Assessment")
         self.start_btn.clicked.connect(self.on_start_assessment)
+        self.start_btn.setVisible(False)  # Hidden - use robot button instead
         button_layout.addWidget(self.start_btn)
 
         self.recalibrate_btn = QPushButton("Recalibrate")
@@ -524,7 +525,7 @@ class BaseAssessmentWindow(QMainWindow):
         """Reset to INIT state for new assessment."""
         self.state = AromAssessState.INIT
         self.canvas.state = self.state
-        self.canvas.instruction_text = "Press 'Start Assessment' to begin"
+        self.canvas.instruction_text = "Press robot button to begin"
 
         # Clear current data
         self.current_arom = None

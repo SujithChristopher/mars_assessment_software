@@ -22,4 +22,4 @@ class AssessmentMLWindow(BaseAssessmentWindow):
     def __init__(self, mars, parent=None):
         super().__init__(mars, parent)
         # Configure canvas for ML-specific visualization
-        self.canvas.instruction_text = "ML Assessment: Press 'Start Assessment' to begin"
+        self.canvas.instruction_text = "ML Assessment: Press robot button to begin"

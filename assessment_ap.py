@@ -22,4 +22,4 @@ class AssessmentAPWindow(BaseAssessmentWindow):
     def __init__(self, mars, parent=None):
         super().__init__(mars, parent)
         # Configure canvas for AP-specific visualization
-        self.canvas.instruction_text = "AP Assessment: Press 'Start Assessment' to begin"
+        self.canvas.instruction_text = "AP Assessment: Press robot button to begin"

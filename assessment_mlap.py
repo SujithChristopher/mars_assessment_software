@@ -22,4 +22,4 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
     def __init__(self, mars, parent=None):
         super().__init__(mars, parent)
         # Configure canvas for MLAP-specific visualization
-        self.canvas.instruction_text = "MLAP Assessment: Press 'Start Assessment' to begin"
+        self.canvas.instruction_text = "MLAP Assessment: Press robot button to begin"
