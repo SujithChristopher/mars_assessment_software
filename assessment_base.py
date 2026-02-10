@@ -283,7 +283,10 @@ class WorkspaceAssessmentCanvas(QWidget):
             painter.drawEllipse(right_x_screen - handle_size // 2, 395, handle_size, handle_size)
 
     def _draw_mlap_boundaries(self, painter, arom: MarsArom, color: QColor, with_handles: bool = False):
-        """Draw MLAP boundaries as a quadrilateral.
+        """Draw MLAP boundaries as a true quadrilateral.
+
+        Matches Unity implementation which connects the four actual extremal points:
+        left → bottom → right → top → left (closing the shape)
 
         Args:
             painter: QPainter instance
@@ -298,25 +301,26 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         painter.setPen(QPen(color, 2))
 
-        # Get four corners
-        top_left = self.robot_to_screen(arom.adjusted_top[0], arom.adjusted_left[1])
-        top_right = self.robot_to_screen(arom.adjusted_top[0], arom.adjusted_right[1])
-        bottom_left = self.robot_to_screen(arom.adjusted_bottom[0], arom.adjusted_left[1])
-        bottom_right = self.robot_to_screen(arom.adjusted_bottom[0], arom.adjusted_right[1])
+        # Get the four actual extremal points (as Unity does)
+        # Each point is (y, z) in robot coords
+        left_point = self.robot_to_screen(arom.adjusted_left[0], arom.adjusted_left[1])
+        bottom_point = self.robot_to_screen(arom.adjusted_bottom[0], arom.adjusted_bottom[1])
+        right_point = self.robot_to_screen(arom.adjusted_right[0], arom.adjusted_right[1])
+        top_point = self.robot_to_screen(arom.adjusted_top[0], arom.adjusted_top[1])
 
-        # Draw quadrilateral
-        painter.drawLine(top_left[0], top_left[1], top_right[0], top_right[1])
-        painter.drawLine(top_right[0], top_right[1], bottom_right[0], bottom_right[1])
-        painter.drawLine(bottom_right[0], bottom_right[1], bottom_left[0], bottom_left[1])
-        painter.drawLine(bottom_left[0], bottom_left[1], top_left[0], top_left[1])
+        # Draw quadrilateral: left → bottom → right → top → left
+        painter.drawLine(left_point[0], left_point[1], bottom_point[0], bottom_point[1])
+        painter.drawLine(bottom_point[0], bottom_point[1], right_point[0], right_point[1])
+        painter.drawLine(right_point[0], right_point[1], top_point[0], top_point[1])
+        painter.drawLine(top_point[0], top_point[1], left_point[0], left_point[1])
 
-        # Handles at corners if requested
+        # Handles at the four actual extremal points if requested
         if with_handles:
             handle_size = 10
             painter.setBrush(QBrush(color))
-            for corner in [top_left, top_right, bottom_left, bottom_right]:
-                painter.drawEllipse(corner[0] - handle_size // 2,
-                                  corner[1] - handle_size // 2,
+            for point in [left_point, bottom_point, right_point, top_point]:
+                painter.drawEllipse(point[0] - handle_size // 2,
+                                  point[1] - handle_size // 2,
                                   handle_size, handle_size)
 
     def _draw_cursor(self, painter):
