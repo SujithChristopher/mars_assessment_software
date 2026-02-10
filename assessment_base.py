@@ -395,8 +395,10 @@ class BaseAssessmentWindow(QMainWindow):
     def connect_signals(self):
         """Connect to MARS device signals."""
         if self.mars is not None:
+            print(f"[Signal] Connecting signals for {self.movement_type} assessment")
             self.mars.newdata.connect(self.handle_new_data)
             self.mars.btnreleased.connect(self.handle_button_release)
+            print(f"[Signal] Connected: newdata and btnreleased")
 
     def disconnect_signals(self):
         """Disconnect from MARS device signals."""
@@ -493,9 +495,26 @@ class BaseAssessmentWindow(QMainWindow):
                 self.last_recorded_pos = (y, z)
 
     def handle_button_release(self):
-        """Handle device button release - triggers ASSESSROM -> ADJUST."""
-        if self.state == AromAssessState.ASSESSROM:
+        """Handle device button release - triggers state transitions.
+
+        Based on Unity MarsAssessAROM.cs OnMarsButtonReleased():
+        - INIT state: Start assessment (INIT → ASSESSROM)
+        - ASSESSROM state: Stop assessment (ASSESSROM → ADJUST)
+        """
+        print(f"[Button] Device button released in state: {self.state}")
+
+        if self.state == AromAssessState.INIT:
+            # Start assessment automatically (like Unity allows)
+            print("[Button] Starting assessment from button press")
+            self.on_start_assessment()
+
+        elif self.state == AromAssessState.ASSESSROM:
+            # Stop assessment and move to adjust mode
+            print("[Button] Stopping assessment from button press")
             self.stop_assessment()
+
+        else:
+            print(f"[Button] No action for state: {self.state}")
 
     def update_canvas(self):
         """Periodic canvas update."""
