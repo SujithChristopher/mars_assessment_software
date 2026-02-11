@@ -82,7 +82,7 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
 
         # Create arm weight data instance
         self.arm_weight_data = ArmWeightData()
-        self.arm_weight_data.initialize_from_mlap(self.current_arom)
+        self.arm_weight_data.initialize_from_mlap(self.current_arom, self.canvas.limb_type)
         self.arm_weight_data.start_assessment()
 
         # Clear trajectory but keep quadrilateral

@@ -67,17 +67,28 @@ class ArmWeightData:
         self._current_target = ArmWeightTarget.NONE
         self._is_recording = False
 
-    def initialize_from_mlap(self, mlap_arom):
+    def initialize_from_mlap(self, mlap_arom, limb_type="RIGHT"):
         """Set target positions from MLAP assessment results.
 
         Args:
             mlap_arom: MarsArom instance with MLAP assessment data
+            limb_type: "LEFT" or "RIGHT" - affects left/right target mapping
         """
         # Use adjusted corners from MLAP assessment
         self.target_positions[ArmWeightTarget.TOP] = mlap_arom.adjusted_top
-        self.target_positions[ArmWeightTarget.RIGHT] = mlap_arom.adjusted_right
         self.target_positions[ArmWeightTarget.BOTTOM] = mlap_arom.adjusted_bottom
-        self.target_positions[ArmWeightTarget.LEFT] = mlap_arom.adjusted_left
+
+        # For LEFT limb, the screen is flipped, so we need to swap left/right
+        # Robot "left" (min Z) appears on RIGHT side of screen for LEFT limb
+        # Robot "right" (max Z) appears on LEFT side of screen for LEFT limb
+        if limb_type == "LEFT":
+            # Swap left and right for visual consistency
+            self.target_positions[ArmWeightTarget.LEFT] = mlap_arom.adjusted_right
+            self.target_positions[ArmWeightTarget.RIGHT] = mlap_arom.adjusted_left
+        else:
+            # RIGHT limb: normal mapping
+            self.target_positions[ArmWeightTarget.LEFT] = mlap_arom.adjusted_left
+            self.target_positions[ArmWeightTarget.RIGHT] = mlap_arom.adjusted_right
 
         # Center is average of all 4 corners
         center_y = (mlap_arom.adjusted_top[0] + mlap_arom.adjusted_right[0] +
