@@ -60,6 +60,12 @@ class WorkspaceAssessmentCanvas(QWidget):
         self.adjust_state = AromAdjustState.NONE
         self.instruction_text = "Press robot button to begin"
 
+        # Arm weight assessment state (imported when needed)
+        self.arm_weight_targets = {}  # Dict of ArmWeightTarget -> (y, z) positions
+        self.arm_weight_state = None  # ArmWeightState enum value
+        self.current_arm_weight_target = None  # Currently active target
+        self.completed_targets = set()  # Set of completed ArmWeightTarget values
+
     def robot_to_screen(self, y: float, z: float) -> tuple:
         """Convert robot coordinates (meters) to screen coordinates (pixels).
 
@@ -158,13 +164,22 @@ class WorkspaceAssessmentCanvas(QWidget):
         if self.previous_arom is not None:
             self._draw_arom_boundaries(painter, self.previous_arom, QColor(100, 150, 255, 100))
 
-        # Trajectory (gray line)
-        if len(self.trajectory) > 1:
+        # Trajectory (gray line) - only during AROM assessment
+        if len(self.trajectory) > 1 and self.arm_weight_state is None:
             self._draw_trajectory(painter)
 
-        # Current AROM (red with handles)
-        if self.current_arom is not None and self.state == AromAssessState.ADJUST:
-            self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 200), True)
+        # Current AROM boundaries
+        if self.current_arom is not None:
+            if self.state == AromAssessState.ADJUST:
+                # Red with handles during adjustment
+                self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 200), True)
+            elif self.arm_weight_state is not None:
+                # Light gray during arm weight assessment
+                self._draw_arom_boundaries(painter, self.current_arom, QColor(150, 150, 150, 150), False)
+
+        # Arm weight targets (if active)
+        if self.arm_weight_state is not None and len(self.arm_weight_targets) > 0:
+            self._draw_arm_weight_targets(painter)
 
         # Current position cursor (green circle)
         if self.current_pos is not None:
@@ -173,8 +188,8 @@ class WorkspaceAssessmentCanvas(QWidget):
         # Instruction text (top-left)
         self._draw_instruction_text(painter)
 
-        # Range measurements (top-right)
-        if self.current_arom is not None and self.state == AromAssessState.ADJUST:
+        # Range measurements (top-right) - only during AROM adjustment
+        if self.current_arom is not None and self.state == AromAssessState.ADJUST and self.arm_weight_state is None:
             self._draw_range_text(painter)
 
     def _draw_grid(self, painter):
@@ -353,6 +368,81 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         text = f"ML: {ml_range:.2f} cm, AP: {ap_range:.2f} cm"
         painter.drawText(550, 30, text)
+
+    def _draw_arm_weight_targets(self, painter):
+        """Draw arm weight target boxes.
+
+        Visual states:
+        - Not started: Blue outline box
+        - Current target (moving): Blue filled box
+        - Current target (in target): Larger green box
+        - Current target (recording): Pulsing green box
+        - Completed: Small black filled box
+        """
+        # Import here to avoid circular dependency
+        from arm_weight_data import ArmWeightTarget
+        from assessment_mlap import ArmWeightState
+
+        # Target size in meters
+        TARGET_SIZE = 0.05  # 5 cm
+        TARGET_REACH_SCALE = 2.0
+        TARGET_COMPLETE_SCALE = 0.6
+
+        # Convert to pixels
+        pixels_per_unity_unit = 60.0
+        target_size_pixels = TARGET_SIZE * self.SCALE_X * pixels_per_unity_unit
+
+        for target, pos in self.arm_weight_targets.items():
+            if target == ArmWeightTarget.NONE:
+                continue
+
+            y, z = pos
+            screen_pos = self.robot_to_screen(y, z)
+
+            # Determine visual style based on state
+            if target in self.completed_targets:
+                # Completed: small black box
+                size = target_size_pixels * TARGET_COMPLETE_SCALE
+                color = QColor(0, 0, 0)
+                painter.setPen(QPen(color, 2))
+                painter.setBrush(QBrush(color))
+            elif target == self.current_arm_weight_target:
+                if self.arm_weight_state == ArmWeightState.MOVING_TO_TARGET:
+                    # Moving to target: blue filled box
+                    size = target_size_pixels
+                    color = QColor(0, 0, 255)
+                    painter.setPen(QPen(color, 2))
+                    painter.setBrush(QBrush(color))
+                elif self.arm_weight_state == ArmWeightState.IN_TARGET:
+                    # In target: larger green box
+                    size = target_size_pixels * TARGET_REACH_SCALE
+                    color = QColor(0, 200, 0)
+                    painter.setPen(QPen(color, 3))
+                    painter.setBrush(QBrush(QColor(0, 200, 0, 100)))
+                elif self.arm_weight_state == ArmWeightState.RECORDING:
+                    # Recording: pulsing green box (solid for now)
+                    size = target_size_pixels * TARGET_REACH_SCALE
+                    color = QColor(0, 255, 0)
+                    painter.setPen(QPen(color, 4))
+                    painter.setBrush(QBrush(color))
+                else:
+                    # Default
+                    size = target_size_pixels
+                    color = QColor(0, 0, 255)
+                    painter.setPen(QPen(color, 2))
+                    painter.setBrush(QBrush(QColor(0, 0, 0, 0)))
+            else:
+                # Not started: blue outline only
+                size = target_size_pixels
+                color = QColor(0, 0, 255)
+                painter.setPen(QPen(color, 2))
+                painter.setBrush(QBrush(QColor(0, 0, 0, 0)))  # Transparent
+
+            # Draw rectangle centered at target position
+            half_size = size / 2
+            painter.drawRect(int(screen_pos[0] - half_size),
+                           int(screen_pos[1] - half_size),
+                           int(size), int(size))
 
 
 class BaseAssessmentWindow(QMainWindow):
