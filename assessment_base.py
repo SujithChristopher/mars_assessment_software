@@ -92,18 +92,19 @@ class WorkspaceAssessmentCanvas(QWidget):
         unity_x = z_normalized * self.SCALE_X
         unity_y = y_normalized * self.SCALE_Y
 
+        # Apply limb offset to unity coordinates (matches Unity C# OFFSET behavior)
+        # For LEFT limb, negate the X coordinate
+        if self.limb_type == "LEFT":
+            unity_x = -unity_x
+
         # Convert Unity units to screen pixels
         # Canvas is 800x800, center at 400,400
         # Unity range of ~-5 to +5 should map to screen pixels
         # Using 60 pixels per Unity unit (10 units * 60 = 600 pixels for workspace)
         pixels_per_unity_unit = 60.0
 
-        # Apply scale and flip for left limb
-        if self.limb_type == "LEFT":
-            x_screen = 400 - unity_x * pixels_per_unity_unit
-        else:
-            x_screen = 400 + unity_x * pixels_per_unity_unit
-
+        # Apply same transformation for both limbs (flip handled above)
+        x_screen = 400 + unity_x * pixels_per_unity_unit
         y_screen = 400 - unity_y * pixels_per_unity_unit  # Flip Y (screen coords go down)
 
         return (int(x_screen), int(y_screen))
@@ -129,12 +130,12 @@ class WorkspaceAssessmentCanvas(QWidget):
         pixels_per_unity_unit = 60.0
 
         # Convert screen pixels to Unity units
+        unity_x = (x_screen - 400) / pixels_per_unity_unit
         unity_y = -(y_screen - 400) / pixels_per_unity_unit
 
+        # Reverse the limb offset (matches forward transformation)
         if self.limb_type == "LEFT":
-            unity_x = -(x_screen - 400) / pixels_per_unity_unit
-        else:
-            unity_x = (x_screen - 400) / pixels_per_unity_unit
+            unity_x = -unity_x
 
         # Convert Unity units to normalized coordinates
         z_normalized = unity_x / self.SCALE_X
@@ -318,6 +319,7 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # Get the four actual extremal points (as Unity does)
         # Each point is (y, z) in robot coords
+        # robot_to_screen handles limb flipping automatically
         left_point = self.robot_to_screen(arom.adjusted_left[0], arom.adjusted_left[1])
         bottom_point = self.robot_to_screen(arom.adjusted_bottom[0], arom.adjusted_bottom[1])
         right_point = self.robot_to_screen(arom.adjusted_right[0], arom.adjusted_right[1])

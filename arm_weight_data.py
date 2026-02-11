@@ -72,23 +72,14 @@ class ArmWeightData:
 
         Args:
             mlap_arom: MarsArom instance with MLAP assessment data
-            limb_type: "LEFT" or "RIGHT" - affects left/right target mapping
+            limb_type: "LEFT" or "RIGHT" - not used, kept for compatibility
         """
         # Use adjusted corners from MLAP assessment
+        # robot_to_screen coordinate transformation handles limb flipping
         self.target_positions[ArmWeightTarget.TOP] = mlap_arom.adjusted_top
+        self.target_positions[ArmWeightTarget.RIGHT] = mlap_arom.adjusted_right
         self.target_positions[ArmWeightTarget.BOTTOM] = mlap_arom.adjusted_bottom
-
-        # For LEFT limb, the screen is flipped, so we need to swap left/right
-        # Robot "left" (min Z) appears on RIGHT side of screen for LEFT limb
-        # Robot "right" (max Z) appears on LEFT side of screen for LEFT limb
-        if limb_type == "LEFT":
-            # Swap left and right for visual consistency
-            self.target_positions[ArmWeightTarget.LEFT] = mlap_arom.adjusted_right
-            self.target_positions[ArmWeightTarget.RIGHT] = mlap_arom.adjusted_left
-        else:
-            # RIGHT limb: normal mapping
-            self.target_positions[ArmWeightTarget.LEFT] = mlap_arom.adjusted_left
-            self.target_positions[ArmWeightTarget.RIGHT] = mlap_arom.adjusted_right
+        self.target_positions[ArmWeightTarget.LEFT] = mlap_arom.adjusted_left
 
         # Center is average of all 4 corners
         center_y = (mlap_arom.adjusted_top[0] + mlap_arom.adjusted_right[0] +
