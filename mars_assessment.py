@@ -46,66 +46,66 @@ class MarsAssessmentLauncher(QMainWindow):
         self.setFixedSize(650, 700)  # Increased height to fit all content
 
         # Apply modern styling with better contrast and visibility
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #f5f5f5;
-            }
-            QWidget {
-                background-color: transparent;
-            }
-            QGroupBox {
-                border: 2px solid #2196F3;
-                border-radius: 6px;
-                margin-top: 10px;
-                padding-top: 20px;
-                padding-left: 10px;
-                padding-right: 10px;
-                padding-bottom: 10px;
-                background-color: white;
-                font-weight: bold;
-                font-size: 11pt;
-                color: #2196F3;
-            }
-            QGroupBox::title {
-                color: #2196F3;
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px;
-            }
-            QPushButton {
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 5px;
-                padding: 8px 15px;
-                font-weight: bold;
-                font-size: 10pt;
-                min-height: 30px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #0D47A1;
-            }
-            QPushButton:disabled {
-                background-color: #BDBDBD;
-                color: #FFFFFF;
-            }
-            QComboBox {
-                border: 2px solid #E0E0E0;
-                border-radius: 4px;
-                padding: 5px 10px;
-                background-color: white;
-                font-size: 10pt;
-                min-height: 25px;
-            }
-            QLabel {
-                font-size: 10pt;
-                color: #333333;
-                background-color: transparent;
-            }
-        """)
+        # self.setStyleSheet("""
+        #     QMainWindow {
+        #         background-color: #f5f5f5;
+        #     }
+        #     QWidget {
+        #         background-color: transparent;
+        #     }
+        #     QGroupBox {
+        #         border: 2px solid #2196F3;
+        #         border-radius: 6px;
+        #         margin-top: 10px;
+        #         padding-top: 20px;
+        #         padding-left: 10px;
+        #         padding-right: 10px;
+        #         padding-bottom: 10px;
+        #         background-color: white;
+        #         font-weight: bold;
+        #         font-size: 11pt;
+        #         color: #2196F3;
+        #     }
+        #     QGroupBox::title {
+        #         color: #2196F3;
+        #         subcontrol-origin: margin;
+        #         left: 10px;
+        #         padding: 0 5px;
+        #     }
+        #     QPushButton {
+        #         background-color: #2196F3;
+        #         color: white;
+        #         border: none;
+        #         border-radius: 5px;
+        #         padding: 8px 15px;
+        #         font-weight: bold;
+        #         font-size: 10pt;
+        #         min-height: 30px;
+        #     }
+        #     QPushButton:hover {
+        #         background-color: #1976D2;
+        #     }
+        #     QPushButton:pressed {
+        #         background-color: #0D47A1;
+        #     }
+        #     QPushButton:disabled {
+        #         background-color: #BDBDBD;
+        #         color: #FFFFFF;
+        #     }
+        #     QComboBox {
+        #         border: 2px solid #E0E0E0;
+        #         border-radius: 4px;
+        #         padding: 5px 10px;
+        #         background-color: white;
+        #         font-size: 10pt;
+        #         min-height: 25px;
+        #     }
+        #     QLabel {
+        #         font-size: 10pt;
+        #         color: #333333;
+        #         background-color: transparent;
+        #     }
+        # """)
 
         # Central widget
         central = QWidget()
@@ -217,27 +217,27 @@ class MarsAssessmentLauncher(QMainWindow):
         btn.setMaximumHeight(65)
         btn.clicked.connect(callback)
         btn.setEnabled(False)
-        btn.setStyleSheet("""
-            QPushButton {
-                text-align: center;
-                padding: 10px 15px;
-                font-size: 10pt;
-                background-color: #2196F3;
-                color: white;
-                border: none;
-                border-radius: 5px;
-            }
-            QPushButton:hover {
-                background-color: #1976D2;
-            }
-            QPushButton:pressed {
-                background-color: #0D47A1;
-            }
-            QPushButton:disabled {
-                background-color: #BDBDBD;
-                color: white;
-            }
-        """)
+        # btn.setStyleSheet("""
+        #     QPushButton {
+        #         text-align: center;
+        #         padding: 10px 15px;
+        #         font-size: 10pt;
+        #         background-color: #2196F3;
+        #         color: white;
+        #         border: none;
+        #         border-radius: 5px;
+        #     }
+        #     QPushButton:hover {
+        #         background-color: #1976D2;
+        #     }
+        #     QPushButton:pressed {
+        #         background-color: #0D47A1;
+        #     }
+        #     QPushButton:disabled {
+        #         background-color: #BDBDBD;
+        #         color: white;
+        #     }
+        # """)
         return btn
 
     def populate_com_ports(self):
