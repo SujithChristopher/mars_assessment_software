@@ -169,7 +169,8 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
             dz = abs(z - target_pos[1])
 
             # Check if button pressed (interrupts recording)
-            if self.mars.button == 1:
+            # button_state: 0 = pressed, 1 = released
+            if self.mars.button_state == 0:
                 # Button pressed - stop recording and go back to IN_TARGET
                 self.arm_weight_data.stop_target_recording()
                 self.arm_weight_state = ArmWeightState.IN_TARGET
