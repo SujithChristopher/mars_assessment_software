@@ -93,8 +93,8 @@ class WorkspaceAssessmentCanvas(QWidget):
         unity_y = y_normalized * self.SCALE_Y
 
         # Apply limb offset to unity coordinates (matches Unity C# OFFSET behavior)
-        # For LEFT limb, negate the X coordinate
-        if self.limb_type == "LEFT":
+        # TEST: Try inverting the offset logic
+        if self.limb_type == "RIGHT":
             unity_x = -unity_x
 
         # Convert Unity units to screen pixels
@@ -598,6 +598,13 @@ class BaseAssessmentWindow(QMainWindow):
 
         # Stop recording
         self.current_arom.stop_assessment()
+
+        # TEST: Swap left and right for LEFT limb to test behavior
+        if self.canvas.limb_type == "LEFT" and self.movement_type == "MLAP":
+            temp_left = self.current_arom.adjusted_left
+            self.current_arom.adjusted_left = self.current_arom.adjusted_right
+            self.current_arom.adjusted_right = temp_left
+            print(f"[TEST] Swapped left/right corners for LEFT limb")
 
         # Update state
         self.state = AromAssessState.ADJUST
