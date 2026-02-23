@@ -503,7 +503,7 @@ class QtMars(QObject):
                 self._logger.info(f"Error Resolved | Previous Error: {self.error_string} | Time: {self._runtime:.2f}")
 
         self._preverrstatus = self.error
-        self._logger.info(f"Frame Rate: {self._framerate:.1f}Hz | Time: {self._runtime:.2f}")
+        # self._logger.info(f"Frame Rate: {self._framerate:.1f}Hz | Time: {self._runtime:.2f}")
         # Frame rate warning
         if self._framerate < MIN_FRAMERATE_WARNING and self._framerate > 0:
             self._logger.warning(f"Frame Rate Low | Frame Rate: {self._framerate:.1f}Hz | Time: {self._runtime:.2f}")

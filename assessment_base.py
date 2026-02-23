@@ -59,6 +59,8 @@ class WorkspaceAssessmentCanvas(QWidget):
         self.state = AromAssessState.INIT
         self.adjust_state = AromAdjustState.NONE
         self.instruction_text = "Press robot button to begin"
+        self.show_grid = True
+        self.countdown_timer = None # None or int/float
 
         # Arm weight assessment state (imported when needed)
         self.arm_weight_targets = {}  # Dict of ArmWeightTarget -> (y, z) positions
@@ -162,7 +164,8 @@ class WorkspaceAssessmentCanvas(QWidget):
         painter.fillRect(self.rect(), QColor(255, 255, 255))
 
         # Grid (5cm intervals)
-        self._draw_grid(painter)
+        if self.show_grid:
+            self._draw_grid(painter)
 
         # Axes
         self._draw_axes(painter)
@@ -192,8 +195,13 @@ class WorkspaceAssessmentCanvas(QWidget):
         if self.current_pos is not None:
             self._draw_cursor(painter)
 
+        # Timer (if active)
+        if self.countdown_timer is not None:
+            self._draw_countdown_timer(painter)
+
         # Discrete reach targets (if active)
         if self.discrete_reach_state is not None and len(self.discrete_reach_targets) > 0:
+            self._draw_discrete_reach_paths(painter)
             self._draw_discrete_reach_targets(painter)
 
         # Instruction text (top-left)
@@ -508,7 +516,7 @@ class WorkspaceAssessmentCanvas(QWidget):
                     color = QColor(0, 200, 0)
                     painter.setPen(QPen(color, 3))
                     painter.setBrush(QBrush(QColor(0, 200, 0, 100)))
-                elif self.discrete_reach_state in [DiscreteReachState.HOLDING, DiscreteReachState.RECORDING]:
+                elif self.discrete_reach_state in [DiscreteReachState.HOLDING, DiscreteReachState.HOLD_STABILIZING]:
                     # Holding/Recording: pulsing green box
                     size = target_size_pixels * TARGET_REACH_SCALE
                     color = QColor(0, 255, 0)
@@ -532,6 +540,57 @@ class WorkspaceAssessmentCanvas(QWidget):
             painter.drawRect(int(screen_pos[0] - half_size),
                            int(screen_pos[1] - half_size),
                            int(size), int(size))
+
+    def _draw_discrete_reach_paths(self, painter):
+        """Draw dashed lines from Home to each peak target."""
+        # Import here to avoid circular dependency
+        from discrete_reach_data import DiscreteReachTarget
+
+        home_pos = self.discrete_reach_targets.get(DiscreteReachTarget.HOME)
+        if home_pos is None:
+            return
+
+        home_screen = self.robot_to_screen(home_pos[0], home_pos[1])
+
+        # Light gray dashed lines
+        painter.setPen(QPen(QColor(200, 200, 200), 2, Qt.DashLine))
+
+        for target in [DiscreteReachTarget.TOP, DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
+            target_pos = self.discrete_reach_targets.get(target)
+            if target_pos:
+                target_screen = self.robot_to_screen(target_pos[0], target_pos[1])
+                painter.drawLine(home_screen[0], home_screen[1], target_screen[0], target_screen[1])
+
+    def _draw_countdown_timer(self, painter):
+        """Draw large countdown timer at the top."""
+        if self.countdown_timer is None:
+            return
+
+        # Prepare font
+        font = QFont("Arial", 48, QFont.Bold)
+        painter.setFont(font)
+        
+        # Format timer text (e.g. "3", "2", "1")
+        if isinstance(self.countdown_timer, (int, float)):
+            timer_val = max(0, int(self.countdown_timer + 0.9)) # Ceil-like behavior for 3, 2, 1
+            if timer_val <= 0: return
+            text = str(timer_val)
+        else:
+            text = str(self.countdown_timer)
+
+        # Calculate position (Top Center)
+        metrics = painter.fontMetrics()
+        text_width = metrics.horizontalAdvance(text)
+        x = (self.width() - text_width) // 2
+        y = 100 # Position from top
+
+        # Draw with slight shadow for visibility
+        painter.setPen(QColor(0, 0, 0, 100))
+        painter.drawText(x + 2, y + 2, text)
+        
+        # Color based on value (Green for high, Orange/Red for low?) - Keeping it simple Green for now
+        painter.setPen(QColor(0, 200, 0))
+        painter.drawText(x, y, text)
 
 
 class BaseAssessmentWindow(QMainWindow):
