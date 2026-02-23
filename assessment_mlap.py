@@ -8,6 +8,8 @@ Date: 11 February 2026
 Email: siva82kb@gmail.com
 """
 
+from datetime import datetime
+import time
 from enum import Enum
 from PySide6.QtCore import QTimer
 from assessment_base import BaseAssessmentWindow, AromAssessState
@@ -151,6 +153,7 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
 
             if dy >= self.TARGET_TOLERANCE or dz >= self.TARGET_TOLERANCE:
                 # Moved out of target
+                self.canvas.countdown_timer = None
                 self.arm_weight_state = ArmWeightState.MOVING_TO_TARGET
                 self.canvas.arm_weight_state = self.arm_weight_state
                 self.canvas.instruction_text = f"Moving to {self.current_target.name} target..."
@@ -173,6 +176,7 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
             if self.mars.button_state == 0:
                 # Button pressed - stop recording and go back to IN_TARGET
                 self.arm_weight_data.stop_target_recording()
+                self.canvas.countdown_timer = None
                 self.arm_weight_state = ArmWeightState.IN_TARGET
                 self.canvas.arm_weight_state = self.arm_weight_state
                 self.canvas.instruction_text = f"Recording stopped. Release button to record again."
@@ -182,6 +186,7 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
             if dy >= self.TARGET_TOLERANCE or dz >= self.TARGET_TOLERANCE:
                 # Moved out of target - stop recording
                 self.arm_weight_data.stop_target_recording()
+                self.canvas.countdown_timer = None
                 self.arm_weight_state = ArmWeightState.MOVING_TO_TARGET
                 self.canvas.arm_weight_state = self.arm_weight_state
                 self.canvas.instruction_text = f"Left target. Moving to {self.current_target.name} target..."
@@ -193,11 +198,16 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
             self.arm_weight_data.add_data_point(y, z, force)
 
             # Check if recording time complete
-            import time
             elapsed = time.time() - self.recording_start_time
-            if elapsed >= self.RECORDING_TIME:
+            remaining = self.RECORDING_TIME - elapsed
+            
+            if remaining > 0:
+                self.canvas.countdown_timer = remaining
+                self.canvas.instruction_text = f"Recording {self.current_target.name}... ({int(remaining + 0.9)}s)"
+            else:
                 # Recording complete
                 self.arm_weight_data.stop_target_recording()
+                self.canvas.countdown_timer = None
                 self.arm_weight_state = ArmWeightState.TARGET_COMPLETE
                 self.canvas.completed_targets.add(self.current_target)
                 self.canvas.arm_weight_state = self.arm_weight_state

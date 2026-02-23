@@ -59,7 +59,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         self.state = AromAssessState.INIT
         self.adjust_state = AromAdjustState.NONE
         self.instruction_text = "Press robot button to begin"
-        self.show_grid = True
+        self.show_grid = False
         self.countdown_timer = None # None or int/float
 
         # Arm weight assessment state (imported when needed)

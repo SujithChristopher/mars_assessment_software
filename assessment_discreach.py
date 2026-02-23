@@ -59,7 +59,6 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         
         super().__init__(mars, parent)
         self.canvas.instruction_text = "Discrete Reaching: Press robot button to begin"
-        self.canvas.show_grid = False
         
         # Load latest MLAP to initialize targets
         mlap_arom = MarsArom.find_latest_assessment("MLAP")
