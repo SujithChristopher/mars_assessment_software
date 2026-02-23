@@ -66,6 +66,12 @@ class WorkspaceAssessmentCanvas(QWidget):
         self.current_arm_weight_target = None  # Currently active target
         self.completed_targets = set()  # Set of completed ArmWeightTarget values
 
+        # Discrete reaching assessment state
+        self.discrete_reach_targets = {} # Dict of DiscreteReachTarget -> (y, z) positions
+        self.discrete_reach_state = None # DiscreteReachState enum value
+        self.current_discrete_reach_target = None # Currently active target
+        self.completed_discrete_targets = set() # Set of completed target values
+
     def robot_to_screen(self, y: float, z: float) -> tuple:
         """Convert robot coordinates (meters) to screen coordinates (pixels).
 
@@ -185,6 +191,10 @@ class WorkspaceAssessmentCanvas(QWidget):
         # Current position cursor (green circle)
         if self.current_pos is not None:
             self._draw_cursor(painter)
+
+        # Discrete reach targets (if active)
+        if self.discrete_reach_state is not None and len(self.discrete_reach_targets) > 0:
+            self._draw_discrete_reach_targets(painter)
 
         # Instruction text (top-left)
         self._draw_instruction_text(painter)
@@ -439,6 +449,83 @@ class WorkspaceAssessmentCanvas(QWidget):
                 color = QColor(0, 0, 255)
                 painter.setPen(QPen(color, 2))
                 painter.setBrush(QBrush(QColor(0, 0, 0, 0)))  # Transparent
+
+            # Draw rectangle centered at target position
+            half_size = size / 2
+            painter.drawRect(int(screen_pos[0] - half_size),
+                           int(screen_pos[1] - half_size),
+                           int(size), int(size))
+
+    def _draw_discrete_reach_targets(self, painter):
+        """Draw discrete reaching target boxes.
+
+        Visual states:
+        - HOME target: Orange outline box
+        - Peak targets (TOP/LEFT/RIGHT): Blue outline box
+        - Current target (moving): Filled box (Orange for Home, Blue for Peak)
+        - Current target (in target): Larger green box
+        - Current target (hold/recording): Pulsing green box (solid green for now)
+        - Completed: Small black filled box (only for Peak targets)
+        """
+        # Import here to avoid circular dependency
+        from discrete_reach_data import DiscreteReachTarget
+        from assessment_discreach import DiscreteReachState
+
+        # Target size in meters
+        TARGET_SIZE = 0.05  # 5 cm
+        TARGET_REACH_SCALE = 2.0
+        TARGET_COMPLETE_SCALE = 0.6
+
+        # Convert to pixels
+        pixels_per_unity_unit = 60.0
+        target_size_pixels = TARGET_SIZE * self.SCALE_X * pixels_per_unity_unit
+
+        for target, pos in self.discrete_reach_targets.items():
+            if target == DiscreteReachTarget.NONE or pos is None:
+                continue
+
+            y, z = pos
+            screen_pos = self.robot_to_screen(y, z)
+
+            # Determine visual style based on state
+            if target != DiscreteReachTarget.HOME and target in self.completed_discrete_targets:
+                # Completed (non-home): small black box
+                size = target_size_pixels * TARGET_COMPLETE_SCALE
+                color = QColor(0, 0, 0)
+                painter.setPen(QPen(color, 2))
+                painter.setBrush(QBrush(color))
+            elif target == self.current_discrete_reach_target:
+                if self.discrete_reach_state in [DiscreteReachState.MOVING_TO_TARGET, 
+                                               DiscreteReachState.MOVING_TO_HOME]:
+                    # Moving to target: filled box (Orange for Home, Blue for Peak)
+                    size = target_size_pixels
+                    color = QColor(255, 140, 0) if target == DiscreteReachTarget.HOME else QColor(0, 0, 255)
+                    painter.setPen(QPen(color, 2))
+                    painter.setBrush(QBrush(color))
+                elif self.discrete_reach_state in [DiscreteReachState.IN_TARGET, DiscreteReachState.IN_HOME]:
+                    # Reached target: larger green outline
+                    size = target_size_pixels * TARGET_REACH_SCALE
+                    color = QColor(0, 200, 0)
+                    painter.setPen(QPen(color, 3))
+                    painter.setBrush(QBrush(QColor(0, 200, 0, 100)))
+                elif self.discrete_reach_state in [DiscreteReachState.HOLDING, DiscreteReachState.RECORDING]:
+                    # Holding/Recording: pulsing green box
+                    size = target_size_pixels * TARGET_REACH_SCALE
+                    color = QColor(0, 255, 0)
+                    painter.setPen(QPen(color, 4))
+                    painter.setBrush(QBrush(color))
+                else:
+                    # Default
+                    size = target_size_pixels
+                    color = QColor(0, 0, 255)
+                    painter.setPen(QPen(color, 2))
+                    painter.setBrush(QBrush(QColor(0, 0, 0, 0)))
+            else:
+                # Not current: colored outline only
+                size = target_size_pixels
+                color = QColor(255, 140, 0) if target == DiscreteReachTarget.HOME else QColor(0, 0, 255)
+                painter.setPen(QPen(color, 2))
+                painter.setBrush(QBrush(QColor(0, 0, 0, 0)))
 
             # Draw rectangle centered at target position
             half_size = size / 2

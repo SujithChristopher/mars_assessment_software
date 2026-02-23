@@ -21,6 +21,7 @@ from qtmars import QtMars
 from assessment_ap import AssessmentAPWindow
 from assessment_ml import AssessmentMLWindow
 from assessment_mlap import AssessmentMLAPWindow
+from assessment_discreach import AssessmentDiscreteReachWindow
 
 
 class MarsAssessmentLauncher(QMainWindow):
@@ -36,6 +37,7 @@ class MarsAssessmentLauncher(QMainWindow):
         self.ap_window = None
         self.ml_window = None
         self.mlap_window = None
+        self.dr_window = None
 
         self.init_ui()
         self.populate_com_ports()
@@ -199,6 +201,14 @@ class MarsAssessmentLauncher(QMainWindow):
         )
         assess_layout.addWidget(self.mlap_btn)
 
+        # Discrete Reaching Assessment Button
+        self.dr_btn = self.create_assessment_button(
+            "⊕  Assess Discrete Reaching",
+            "(Home to 75% workspace targets)",
+            self.launch_discrete_reach_assessment
+        )
+        assess_layout.addWidget(self.dr_btn)
+
         main_layout.addWidget(assess_group)
 
     def create_assessment_button(self, title: str, subtitle: str, callback) -> QPushButton:
@@ -303,6 +313,7 @@ class MarsAssessmentLauncher(QMainWindow):
             self.ap_btn.setEnabled(True)
             self.ml_btn.setEnabled(True)
             self.mlap_btn.setEnabled(True)
+            self.dr_btn.setEnabled(True)
 
             print(f"Connected to MARS device on {port}")
 
@@ -334,6 +345,7 @@ class MarsAssessmentLauncher(QMainWindow):
             self.ap_btn.setEnabled(False)
             self.ml_btn.setEnabled(False)
             self.mlap_btn.setEnabled(False)
+            self.dr_btn.setEnabled(False)
 
             print("Disconnected from MARS device")
 
@@ -443,6 +455,30 @@ class MarsAssessmentLauncher(QMainWindow):
             self.mlap_window.canvas.limb_type = self.limb_combo.currentText()
             self.mlap_window.show()
             print("Launched MLAP assessment window")
+
+    def launch_discrete_reach_assessment(self):
+        """Launch Discrete Reaching assessment window."""
+        if not self.mars or not self.mars.is_connected():
+            QMessageBox.warning(self, "Connection Required",
+                              "Please connect to device before starting assessment.")
+            return
+
+        # Check if MLAP data exists (required for targets)
+        from mars_arom_data import MarsArom
+        if MarsArom.find_latest_assessment("MLAP") is None:
+            reply = QMessageBox.question(self, "MLAP Data Required",
+                                       "No MLAP assessment found. Discrete reaching requires MLAP targets.\n\n"
+                                       "Do you want to launch it anyway?",
+                                       QMessageBox.Yes | QMessageBox.No)
+            if reply == QMessageBox.No:
+                return
+
+        if self.dr_window is None or not self.dr_window.isVisible():
+            self.dr_window = AssessmentDiscreteReachWindow(self.mars, self)
+            # Update canvas limb type
+            self.dr_window.canvas.limb_type = self.limb_combo.currentText()
+            self.dr_window.show()
+            print("Launched Discrete Reaching assessment window")
 
     def closeEvent(self, event):
         """Handle window close event."""
