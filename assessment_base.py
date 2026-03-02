@@ -596,9 +596,12 @@ class WorkspaceAssessmentCanvas(QWidget):
 class BaseAssessmentWindow(QMainWindow):
     """Base class for workspace assessment windows."""
 
-    def __init__(self, mars, parent=None):
+    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, parent=None):
         super().__init__(parent)
         self.mars = mars
+        self.patient_id = patient_id
+        self.time_point = time_point
+        self.is_demo = is_demo
         self.state = AromAssessState.INIT
         self.adjust_state = AromAdjustState.NONE
 
@@ -709,7 +712,7 @@ class BaseAssessmentWindow(QMainWindow):
 
     def load_previous_assessment(self):
         """Load most recent assessment of this type."""
-        self.previous_arom = MarsArom.find_latest_assessment(self.movement_type)
+        self.previous_arom = MarsArom.find_latest_assessment(self.movement_type, patient_id=self.patient_id)
         self.canvas.previous_arom = self.previous_arom
 
     def on_start_assessment(self):
@@ -718,7 +721,7 @@ class BaseAssessmentWindow(QMainWindow):
             return
 
         # Create new AROM instance
-        self.current_arom = MarsArom(self.movement_type)
+        self.current_arom = MarsArom(self.movement_type, self.patient_id, self.time_point, self.is_demo)
         self.current_arom.start_assessment()
         self.canvas.current_arom = self.current_arom
 

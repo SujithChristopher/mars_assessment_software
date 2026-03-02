@@ -13,8 +13,9 @@ import sys
 import serial.tools.list_ports
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QPushButton, QLabel, QComboBox,
-                               QGroupBox, QMessageBox, QFrame)
-from PySide6.QtCore import Qt, QTimer
+                               QGroupBox, QMessageBox, QFrame, QLineEdit,
+                               QStackedWidget)
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFont
 
 from qtmars import QtMars
@@ -22,6 +23,92 @@ from assessment_ap import AssessmentAPWindow
 from assessment_ml import AssessmentMLWindow
 from assessment_mlap import AssessmentMLAPWindow
 from assessment_discreach import AssessmentDiscreteReachWindow
+
+
+class PatientEntryWidget(QWidget):
+    """Initial scene for capturing patient ID and session info."""
+    
+    # Custom signal to notify when entry is complete
+    # Emits (patient_id, time_point, is_demo)
+    entry_complete = Signal(str, str, bool)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.init_ui()
+
+    def init_ui(self):
+        """Create patient entry UI."""
+        layout = QVBoxLayout(self)
+        layout.setSpacing(20)
+        layout.setContentsMargins(50, 50, 50, 50)
+
+        # Title
+        title_label = QLabel("Patient Management")
+        title_label.setFont(QFont("Segoe UI", 16, QFont.Bold))
+        title_label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title_label)
+
+        # Homer ID Field
+        id_group = QGroupBox("Patient Registration")
+        id_layout = QVBoxLayout(id_group)
+        
+        id_input_layout = QHBoxLayout()
+        id_input_layout.addWidget(QLabel("HOMER ID:"))
+        self.id_input = QLineEdit()
+        self.id_input.setPlaceholderText("Enter Homer ID (e.g. HOMER_001)")
+        self.id_input.setMinimumHeight(35)
+        id_input_layout.addWidget(self.id_input)
+        
+        self.demo_btn = QPushButton("Demo Mode")
+        self.demo_btn.setToolTip("Skip registration - data will not be saved")
+        self.demo_btn.setFixedWidth(100)
+        self.demo_btn.clicked.connect(self.on_demo_clicked)
+        id_input_layout.addWidget(self.demo_btn)
+        
+        id_layout.addLayout(id_input_layout)
+        layout.addWidget(id_group)
+
+        # Time Point Selection
+        time_group = QGroupBox("Assessment Phase")
+        time_layout = QHBoxLayout(time_group)
+        time_layout.addWidget(QLabel("Time Point:"))
+        self.time_combo = QComboBox()
+        self.time_combo.addItems(["A0", "A1", "A2"])
+        self.time_combo.setMinimumHeight(35)
+        time_layout.addWidget(self.time_combo, 1)
+        layout.addWidget(time_group)
+
+        # Enter Button
+        self.enter_btn = QPushButton("Enter Launcher")
+        self.enter_btn.setMinimumHeight(45)
+        self.enter_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-size: 11pt;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        self.enter_btn.clicked.connect(self.on_enter_clicked)
+        layout.addWidget(self.enter_btn)
+
+        layout.addStretch()
+
+    def on_demo_clicked(self):
+        """Handle demo button click."""
+        self.entry_complete.emit("DEMO_USER", "DEMO", True)
+
+    def on_enter_clicked(self):
+        """Handle enter button click."""
+        patient_id = self.id_input.text().strip()
+        if not patient_id:
+            QMessageBox.warning(self, "Invalid Input", "Please enter a valid HOMER ID or use Demo mode.")
+            return
+        
+        time_point = self.time_combo.currentText()
+        self.entry_complete.emit(patient_id, time_point, False)
 
 
 class MarsAssessmentLauncher(QMainWindow):
@@ -33,6 +120,11 @@ class MarsAssessmentLauncher(QMainWindow):
         self.heartbeat_timer = QTimer()
         self.heartbeat_timer.timeout.connect(self.send_heartbeat)
 
+        # Session state
+        self.patient_id = None
+        self.time_point = "A0"
+        self.is_demo = False
+
         # Assessment windows
         self.ap_window = None
         self.ml_window = None
@@ -43,78 +135,25 @@ class MarsAssessmentLauncher(QMainWindow):
         self.populate_com_ports()
 
     def init_ui(self):
-        """Create main window UI."""
+        """Create main window UI with stacked widget."""
         self.setWindowTitle("MARS Workspace Assessment System")
-        self.setFixedSize(650, 700)  # Increased height to fit all content
+        self.setFixedSize(650, 700)
 
-        # Apply modern styling with better contrast and visibility
-        # self.setStyleSheet("""
-        #     QMainWindow {
-        #         background-color: #f5f5f5;
-        #     }
-        #     QWidget {
-        #         background-color: transparent;
-        #     }
-        #     QGroupBox {
-        #         border: 2px solid #2196F3;
-        #         border-radius: 6px;
-        #         margin-top: 10px;
-        #         padding-top: 20px;
-        #         padding-left: 10px;
-        #         padding-right: 10px;
-        #         padding-bottom: 10px;
-        #         background-color: white;
-        #         font-weight: bold;
-        #         font-size: 11pt;
-        #         color: #2196F3;
-        #     }
-        #     QGroupBox::title {
-        #         color: #2196F3;
-        #         subcontrol-origin: margin;
-        #         left: 10px;
-        #         padding: 0 5px;
-        #     }
-        #     QPushButton {
-        #         background-color: #2196F3;
-        #         color: white;
-        #         border: none;
-        #         border-radius: 5px;
-        #         padding: 8px 15px;
-        #         font-weight: bold;
-        #         font-size: 10pt;
-        #         min-height: 30px;
-        #     }
-        #     QPushButton:hover {
-        #         background-color: #1976D2;
-        #     }
-        #     QPushButton:pressed {
-        #         background-color: #0D47A1;
-        #     }
-        #     QPushButton:disabled {
-        #         background-color: #BDBDBD;
-        #         color: #FFFFFF;
-        #     }
-        #     QComboBox {
-        #         border: 2px solid #E0E0E0;
-        #         border-radius: 4px;
-        #         padding: 5px 10px;
-        #         background-color: white;
-        #         font-size: 10pt;
-        #         min-height: 25px;
-        #     }
-        #     QLabel {
-        #         font-size: 10pt;
-        #         color: #333333;
-        #         background-color: transparent;
-        #     }
-        # """)
+        # Stacked widget for scene management
+        self.stack = QStackedWidget()
+        self.setCentralWidget(self.stack)
 
-        # Central widget
-        central = QWidget()
-        self.setCentralWidget(central)
-        main_layout = QVBoxLayout(central)
+        # Scene 1: Patient Entry
+        self.entry_widget = PatientEntryWidget()
+        self.entry_widget.entry_complete.connect(self.start_main_launcher)
+        self.stack.addWidget(self.entry_widget)
+
+        # Scene 2: Main Launcher Content
+        self.launcher_widget = QWidget()
+        main_layout = QVBoxLayout(self.launcher_widget)
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(15, 15, 15, 15)
+        self.stack.addWidget(self.launcher_widget)
 
         # Connection Group
         conn_group = QGroupBox("Device Connection")
@@ -210,6 +249,20 @@ class MarsAssessmentLauncher(QMainWindow):
         assess_layout.addWidget(self.dr_btn)
 
         main_layout.addWidget(assess_group)
+
+    def start_main_launcher(self, patient_id, time_point, is_demo):
+        """Transition from patient entry to main assessment launcher."""
+        self.patient_id = patient_id
+        self.time_point = time_point
+        self.is_demo = is_demo
+        
+        # Add session info to title
+        session_info = f"[Demo Mode]" if is_demo else f"[Patient: {patient_id} | {time_point}]"
+        self.setWindowTitle(f"MARS Assessment Launcher {session_info}")
+        
+        # Switch to launcher scene
+        self.stack.setCurrentWidget(self.launcher_widget)
+        print(f"Session started: {session_info}")
 
     def create_assessment_button(self, title: str, subtitle: str, callback) -> QPushButton:
         """Create a styled assessment button with title and subtitle.
@@ -422,7 +475,7 @@ class MarsAssessmentLauncher(QMainWindow):
             return
 
         if self.ap_window is None or not self.ap_window.isVisible():
-            self.ap_window = AssessmentAPWindow(self.mars, self)
+            self.ap_window = AssessmentAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self)
             # Update canvas limb type
             self.ap_window.canvas.limb_type = self.limb_combo.currentText()
             self.ap_window.show()
@@ -436,7 +489,7 @@ class MarsAssessmentLauncher(QMainWindow):
             return
 
         if self.ml_window is None or not self.ml_window.isVisible():
-            self.ml_window = AssessmentMLWindow(self.mars, self)
+            self.ml_window = AssessmentMLWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self)
             # Update canvas limb type
             self.ml_window.canvas.limb_type = self.limb_combo.currentText()
             self.ml_window.show()
@@ -450,7 +503,7 @@ class MarsAssessmentLauncher(QMainWindow):
             return
 
         if self.mlap_window is None or not self.mlap_window.isVisible():
-            self.mlap_window = AssessmentMLAPWindow(self.mars, self)
+            self.mlap_window = AssessmentMLAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self)
             # Update canvas limb type
             self.mlap_window.canvas.limb_type = self.limb_combo.currentText()
             self.mlap_window.show()
@@ -474,7 +527,7 @@ class MarsAssessmentLauncher(QMainWindow):
                 return
 
         if self.dr_window is None or not self.dr_window.isVisible():
-            self.dr_window = AssessmentDiscreteReachWindow(self.mars, self)
+            self.dr_window = AssessmentDiscreteReachWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self)
             # Update canvas limb type
             self.dr_window.canvas.limb_type = self.limb_combo.currentText()
             self.dr_window.show()

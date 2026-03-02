@@ -30,8 +30,17 @@ class DiscreteReachData:
     Tracks targets derived from MLAP assessment and records reaching results.
     """
 
-    def __init__(self):
-        """Initialize discrete reaching assessment."""
+    def __init__(self, patient_id: str = None, time_point: str = "A0", is_demo: bool = False):
+        """Initialize discrete reaching assessment.
+        
+        Args:
+            patient_id: Homer ID of the patient
+            time_point: Time point (A0, A1, A2)
+            is_demo: Whether this is a demo session
+        """
+        self.patient_id = patient_id
+        self.time_point = time_point
+        self.is_demo = is_demo
         self.timestamp = None
 
         # Target positions (y, z) in meters - calculated from MLAP
@@ -145,14 +154,23 @@ class DiscreteReachData:
             base_dir: Base directory for data storage
 
         Returns:
-            Full path to saved CSV file
+            Full path to saved CSV file, or None if demo mode
         """
+        if self.is_demo:
+            print("Demo mode: Skipping data save.")
+            return None
+
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
-        # Follow session folder convention
+        # Target folder structure: data/<patient_id>/<time_point>/session<N>-<date>/
         date_str = self.timestamp.strftime("%Y-%m-%d")
-        session_dir = Path(base_dir)
+        
+        # Build path based on patient_id and time_point
+        if self.patient_id:
+            session_dir = Path(base_dir) / self.patient_id / self.time_point
+        else:
+            session_dir = Path(base_dir)
 
         # Find the most recent session folder for today
         session_num = 1

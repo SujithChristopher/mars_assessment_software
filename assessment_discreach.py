@@ -51,24 +51,24 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         """Assessment type name."""
         return "DiscreteReaching"
 
-    def __init__(self, mars, parent=None):
+    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, parent=None):
         self.dr_state = DiscreteReachState.INACTIVE
         self.dr_data = None
         self.current_peak_index = 0
         self.holding_start_time = 0.0
         
-        super().__init__(mars, parent)
+        super().__init__(mars, patient_id, time_point, is_demo, parent)
         self.canvas.instruction_text = "Discrete Reaching: Press robot button to begin"
         
         # Load latest MLAP to initialize targets
-        mlap_arom = MarsArom.find_latest_assessment("MLAP")
+        mlap_arom = MarsArom.find_latest_assessment("MLAP", patient_id=self.patient_id)
         if mlap_arom:
-            self.dr_data = DiscreteReachData()
+            self.dr_data = DiscreteReachData(self.patient_id, self.time_point, self.is_demo)
             self.dr_data.initialize_from_mlap(mlap_arom)
             self.canvas.discrete_reach_targets = self.dr_data.target_positions
             # Also keep the MLAP quadrilateral visible
             self.canvas.current_arom = mlap_arom
-            print("Initialized targets from latest MLAP assessment")
+            print(f"Initialized targets from latest MLAP assessment for patient {self.patient_id}")
         else:
             print("No MLAP assessment found. Calibration required.")
             self.canvas.instruction_text = "ERROR: No MLAP data found. Please complete MLAP assessment first."
@@ -77,9 +77,9 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         """Initialize discrete reaching assessment."""
         if self.dr_data is None:
             # Try reloading MLAP if it was missing initially
-            mlap_arom = MarsArom.find_latest_assessment("MLAP")
+            mlap_arom = MarsArom.find_latest_assessment("MLAP", patient_id=self.patient_id)
             if mlap_arom:
-                self.dr_data = DiscreteReachData()
+                self.dr_data = DiscreteReachData(self.patient_id, self.time_point, self.is_demo)
                 self.dr_data.initialize_from_mlap(mlap_arom)
                 self.canvas.discrete_reach_targets = self.dr_data.target_positions
                 self.canvas.current_arom = mlap_arom

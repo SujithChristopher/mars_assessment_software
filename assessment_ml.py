@@ -19,7 +19,7 @@ class AssessmentMLWindow(BaseAssessmentWindow):
         """Assessment type."""
         return "ML"
 
-    def __init__(self, mars, parent=None):
-        super().__init__(mars, parent)
+    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, parent=None):
+        super().__init__(mars, patient_id, time_point, is_demo, parent)
         # Configure canvas for ML-specific visualization
         self.canvas.instruction_text = "ML Assessment: Press robot button to begin"

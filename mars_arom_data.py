@@ -19,16 +19,23 @@ class MarsArom:
     Active Range of Motion assessments (AP, ML, or MLAP).
     """
 
-    def __init__(self, movement_type: str):
+    def __init__(self, movement_type: str, patient_id: str = None, 
+                 time_point: str = "A0", is_demo: bool = False):
         """Initialize MarsArom instance.
-
+        
         Args:
             movement_type: Assessment type - "AP", "ML", or "MLAP"
+            patient_id: Homer ID of the patient
+            time_point: Time point (A0, A1, A2)
+            is_demo: Whether this is a demo session
         """
         if movement_type not in ["AP", "ML", "MLAP"]:
             raise ValueError(f"Invalid movement type: {movement_type}")
 
         self.movement_type = movement_type
+        self.patient_id = patient_id
+        self.time_point = time_point
+        self.is_demo = is_demo
         self.timestamp = None
         self.plane_angle = 90.0  # Default training plane angle
 
@@ -145,14 +152,23 @@ class MarsArom:
             base_dir: Base directory for data storage
 
         Returns:
-            Full path to saved CSV file
+            Full path to saved CSV file, or None if demo mode
         """
+        if self.is_demo:
+            print("Demo mode: Skipping data save.")
+            return None
+
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
-        # Create session folder: data/session{N}-{date}/
+        # Target folder structure: data/<patient_id>/<time_point>/session<N>-<date>/
         date_str = self.timestamp.strftime("%Y-%m-%d")
-        session_dir = Path(base_dir)
+        
+        # Build path based on patient_id and time_point
+        if self.patient_id:
+            session_dir = Path(base_dir) / self.patient_id / self.time_point
+        else:
+            session_dir = Path(base_dir)
 
         # Find next session number for today
         session_num = 1
@@ -194,7 +210,7 @@ class MarsArom:
             writer.writerow([
                 self.timestamp.isoformat(),
                 self.plane_angle,
-                self.movement_type,
+                f"{self.patient_id}/{self.time_point}/{self.movement_type}" if self.patient_id else self.movement_type,
                 self.raw_top[0] if self.raw_top else '',
                 self.raw_top[1] if self.raw_top else '',
                 self.raw_bottom[0] if self.raw_bottom else '',
@@ -282,12 +298,13 @@ class MarsArom:
         return arom
 
     @staticmethod
-    def find_latest_assessment(movement_type: str, base_dir: str = "data") -> 'MarsArom':
+    def find_latest_assessment(movement_type: str, base_dir: str = "data", patient_id: str = None) -> 'MarsArom':
         """Find and load the most recent assessment of given type.
 
         Args:
             movement_type: Assessment type - "AP", "ML", or "MLAP"
             base_dir: Base directory for data storage
+            patient_id: Optional patient ID to filter by
 
         Returns:
             MarsArom instance or None if not found
@@ -296,8 +313,17 @@ class MarsArom:
         if not base_path.exists():
             return None
 
-        # Find all matching files
-        pattern = f"*/{movement_type.lower()}-*.csv"
+        # Determine search pattern
+        if patient_id:
+            # Look in any time point folder for this patient
+            pattern = f"{patient_id}/*/*/ {movement_type.lower()}-*.csv"
+            # Adjusting pattern to handle the session folders
+            # path: data/<patient_id>/<time_point>/session.../movement-*.csv
+            pattern = f"{patient_id}/*/*/{movement_type.lower()}-*.csv"
+        else:
+            # Original behavior (recursive search)
+            pattern = f"**/{movement_type.lower()}-*.csv"
+            
         matching_files = list(base_path.glob(pattern))
 
         if not matching_files:
