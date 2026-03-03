@@ -256,4 +256,6 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         if self.dr_data:
             filepath = self.dr_data.save_to_csv(session_subdir=self.session_subdir)
             print(f"Discrete Reaching assessment saved: {filepath}")
+            # Emit completion signal
+            self.assessment_finished.emit(self.movement_type)
         self.close()

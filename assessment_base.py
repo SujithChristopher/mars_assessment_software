@@ -12,7 +12,7 @@ Email: siva82kb@gmail.com
 from enum import Enum
 from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
                                 QPushButton, QLabel)
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QFont
 import marsdefs as mdef
 from mars_arom_data import MarsArom
@@ -595,6 +595,10 @@ class WorkspaceAssessmentCanvas(QWidget):
 
 class BaseAssessmentWindow(QMainWindow):
     """Base class for workspace assessment windows."""
+    
+    # Signal emitted when assessment is successfully saved
+    # Parameter: assessment type (e.g., "AP", "ML", "MLAP")
+    assessment_finished = Signal(str)
 
     def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, session_subdir=None, parent=None):
         super().__init__(parent)
@@ -854,6 +858,9 @@ class BaseAssessmentWindow(QMainWindow):
         # Save to CSV
         filepath = self.current_arom.save_to_csv(session_subdir=self.session_subdir)
         print(f"Saved assessment to: {filepath}")
+
+        # Emit completion signal
+        self.assessment_finished.emit(self.movement_type)
 
         # Update state
         self.state = AromAssessState.DONE

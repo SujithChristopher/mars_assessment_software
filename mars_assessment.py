@@ -132,6 +132,11 @@ class MarsAssessmentLauncher(QMainWindow):
         self.mlap_window = None
         self.dr_window = None
 
+        # Completion tracking
+        self.completed_assessments = set()
+        self.assessment_btns = {} # type -> QPushButton (main)
+        self.redo_btns = {}       # type -> QPushButton (redo)
+
         self.init_ui()
         self.populate_com_ports()
 
@@ -215,39 +220,19 @@ class MarsAssessmentLauncher(QMainWindow):
 
         # Workspace Assessments Group
         assess_group = QGroupBox("Workspace Assessments")
-        assess_layout = QVBoxLayout(assess_group)
+        self.assess_layout = QVBoxLayout(assess_group)
 
-        # AP Assessment Button
-        self.ap_btn = self.create_assessment_button(
-            "↕  Assess Anterior-Posterior",
-            "(Forward/Backward Movement)",
-            self.launch_ap_assessment
-        )
-        assess_layout.addWidget(self.ap_btn)
-
-        # ML Assessment Button
-        self.ml_btn = self.create_assessment_button(
-            "↔  Assess Medio-Lateral",
-            "(Side-to-Side Movement)",
-            self.launch_ml_assessment
-        )
-        assess_layout.addWidget(self.ml_btn)
-
-        # MLAP Assessment Button
-        self.mlap_btn = self.create_assessment_button(
-            "⊕  Assess Combined (MLAP)",
-            "(Full Workspace Envelope)",
-            self.launch_mlap_assessment
-        )
-        assess_layout.addWidget(self.mlap_btn)
-
-        # Discrete Reaching Assessment Button
-        self.dr_btn = self.create_assessment_button(
-            "⊕  Assess Discrete Reaching",
-            "(Home to 75% workspace targets)",
-            self.launch_discrete_reach_assessment
-        )
-        assess_layout.addWidget(self.dr_btn)
+        # AP Assessment Row
+        self.add_assessment_row("AP", "↕  Assess Anterior-Posterior", "(Forward/Backward Movement)", self.launch_ap_assessment)
+        
+        # ML Assessment Row
+        self.add_assessment_row("ML", "↔  Assess Medio-Lateral", "(Side-to-Side Movement)", self.launch_ml_assessment)
+        
+        # MLAP Assessment Row
+        self.add_assessment_row("MLAP", "⊕  Assess Combined (MLAP)", "(Full Workspace Envelope)", self.launch_mlap_assessment)
+        
+        # Discrete Reaching Assessment Row
+        self.add_assessment_row("DiscreteReaching", "⊕  Assess Discrete Reaching", "(Home to 75% workspace targets)", self.launch_discrete_reach_assessment)
 
         main_layout.addWidget(assess_group)
 
@@ -294,44 +279,75 @@ class MarsAssessmentLauncher(QMainWindow):
         if self.session_subdir:
             print(f"Data will be saved to: {self.session_subdir}")
 
-    def create_assessment_button(self, title: str, subtitle: str, callback) -> QPushButton:
-        """Create a styled assessment button with title and subtitle.
-
+    def add_assessment_row(self, assess_type: str, title: str, subtitle: str, callback):
+        """Add a row with main button and redo button.
+        
         Args:
-            title: Main button text
-            subtitle: Descriptive subtitle
-            callback: Click handler function
-
-        Returns:
-            QPushButton configured with layout
+            assess_type: Unique identifier (AP, ML, MLAP, DiscreteReaching)
+            title: Title for main button
+            subtitle: Subtitle for main button
+            callback: Function to launch assessment
         """
+        row_layout = QHBoxLayout()
+        row_layout.setSpacing(10)
+
+        # Main button
         btn = QPushButton(f"{title}\n{subtitle}")
         btn.setMinimumHeight(60)
-        btn.setMaximumHeight(65)
         btn.clicked.connect(callback)
         btn.setEnabled(False)
-        # btn.setStyleSheet("""
-        #     QPushButton {
-        #         text-align: center;
-        #         padding: 10px 15px;
-        #         font-size: 10pt;
-        #         background-color: #2196F3;
-        #         color: white;
-        #         border: none;
-        #         border-radius: 5px;
-        #     }
-        #     QPushButton:hover {
-        #         background-color: #1976D2;
-        #     }
-        #     QPushButton:pressed {
-        #         background-color: #0D47A1;
-        #     }
-        #     QPushButton:disabled {
-        #         background-color: #BDBDBD;
-        #         color: white;
-        #     }
-        # """)
-        return btn
+        row_layout.addWidget(btn, 1) # Give main button more space
+        self.assessment_btns[assess_type] = btn
+
+        # Redo button
+        redo_btn = QPushButton("Redo")
+        redo_btn.setMinimumHeight(60)
+        redo_btn.setFixedWidth(80)
+        redo_btn.clicked.connect(callback)
+        redo_btn.setEnabled(False)
+        redo_btn.setVisible(False) # Only show when completed
+        row_layout.addWidget(redo_btn)
+        self.redo_btns[assess_type] = redo_btn
+
+        self.assess_layout.addLayout(row_layout)
+
+    def update_assessment_status(self, assess_type: str):
+        """Update button style when assessment is completed.
+        
+        Args:
+            assess_type: Type of assessment completed
+        """
+        print(f"Updating status for: {assess_type}")
+        self.completed_assessments.add(assess_type)
+        
+        if assess_type in self.assessment_btns:
+            btn = self.assessment_btns[assess_type]
+            # Use green background for completed
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    font-weight: bold;
+                    border-radius: 5px;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
+            
+            # Show redo button
+            if assess_type in self.redo_btns:
+                self.redo_btns[assess_type].setVisible(True)
+                self.redo_btns[assess_type].setEnabled(True)
+
+    def connect_assessment_signals(self, window):
+        """Connect completion signal from assessment window.
+        
+        Args:
+            window: Assessment window instance
+        """
+        if hasattr(window, 'assessment_finished'):
+            window.assessment_finished.connect(self.update_assessment_status)
 
     def populate_com_ports(self):
         """Populate COM port dropdown with available ports."""
@@ -393,10 +409,13 @@ class MarsAssessmentLauncher(QMainWindow):
             self.set_plane_btn.setEnabled(True)
 
             # Enable assessment buttons
-            self.ap_btn.setEnabled(True)
-            self.ml_btn.setEnabled(True)
-            self.mlap_btn.setEnabled(True)
-            self.dr_btn.setEnabled(True)
+            for btn in self.assessment_btns.values():
+                btn.setEnabled(True)
+            for redo_btn in self.redo_btns.values():
+                # Find key for this button
+                a_type = [k for k, v in self.redo_btns.items() if v == redo_btn][0]
+                if a_type in self.completed_assessments:
+                    redo_btn.setEnabled(True)
 
             print(f"Connected to MARS device on {port}")
 
@@ -425,10 +444,10 @@ class MarsAssessmentLauncher(QMainWindow):
             self.set_plane_btn.setEnabled(False)
 
             # Disable assessment buttons
-            self.ap_btn.setEnabled(False)
-            self.ml_btn.setEnabled(False)
-            self.mlap_btn.setEnabled(False)
-            self.dr_btn.setEnabled(False)
+            for btn in self.assessment_btns.values():
+                btn.setEnabled(False)
+            for redo_btn in self.redo_btns.values():
+                redo_btn.setEnabled(False)
 
             print("Disconnected from MARS device")
 
@@ -506,6 +525,7 @@ class MarsAssessmentLauncher(QMainWindow):
 
         if self.ap_window is None or not self.ap_window.isVisible():
             self.ap_window = AssessmentAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
+            self.connect_assessment_signals(self.ap_window)
             # Update canvas limb type
             self.ap_window.canvas.limb_type = self.limb_combo.currentText()
             self.ap_window.show()
@@ -520,6 +540,7 @@ class MarsAssessmentLauncher(QMainWindow):
 
         if self.ml_window is None or not self.ml_window.isVisible():
             self.ml_window = AssessmentMLWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
+            self.connect_assessment_signals(self.ml_window)
             # Update canvas limb type
             self.ml_window.canvas.limb_type = self.limb_combo.currentText()
             self.ml_window.show()
@@ -534,6 +555,7 @@ class MarsAssessmentLauncher(QMainWindow):
 
         if self.mlap_window is None or not self.mlap_window.isVisible():
             self.mlap_window = AssessmentMLAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
+            self.connect_assessment_signals(self.mlap_window)
             # Update canvas limb type
             self.mlap_window.canvas.limb_type = self.limb_combo.currentText()
             self.mlap_window.show()
@@ -558,6 +580,7 @@ class MarsAssessmentLauncher(QMainWindow):
 
         if self.dr_window is None or not self.dr_window.isVisible():
             self.dr_window = AssessmentDiscreteReachWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
+            self.connect_assessment_signals(self.dr_window)
             # Update canvas limb type
             self.dr_window.canvas.limb_type = self.limb_combo.currentText()
             self.dr_window.show()
