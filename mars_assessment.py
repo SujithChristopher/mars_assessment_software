@@ -98,7 +98,9 @@ class PatientEntryWidget(QWidget):
 
     def on_demo_clicked(self):
         """Handle demo button click."""
-        self.entry_complete.emit("DEMO_USER", "DEMO", True)
+        # Use 'demo' as patient_id and 'A0' as default time_point for demo sessions
+        # This allows saving data to data/demo/A0/session...
+        self.entry_complete.emit("demo", "A0", True)
 
     def on_enter_clicked(self):
         """Handle enter button click."""
@@ -243,31 +245,32 @@ class MarsAssessmentLauncher(QMainWindow):
         self.is_demo = is_demo
         
         # Determine session subdirectory once
-        if not is_demo:
-            from pathlib import Path
-            from datetime import datetime
-            date_str = datetime.now().strftime("%Y-%m-%d")
-            base_dir = "data"
-            parent_dir = Path(base_dir) / patient_id / time_point
+        from pathlib import Path
+        from datetime import datetime
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        base_dir = "data"
+        parent_dir = Path(base_dir) / patient_id / time_point
+        
+        # Ensure parent directory exists
+        if not parent_dir.exists():
+            parent_dir.mkdir(parents=True, exist_ok=True)
             
-            # Auto-increment session number
-            session_num = 1
-            while True:
-                candidate = parent_dir / f"session{session_num}-{date_str}"
-                if not candidate.exists():
-                    # We found the first available folder
-                    self.session_subdir = f"session{session_num}-{date_str}"
-                    break
-                # Only increment if the folder has files inside it
-                if list(candidate.glob("*.csv")):
-                    session_num += 1
-                else:
-                    self.session_subdir = f"session{session_num}-{date_str}"
-                    break
-            
-            print(f"Computed session folder: {self.session_subdir}")
-        else:
-            self.session_subdir = None
+        # Auto-increment session number
+        session_num = 1
+        while True:
+            candidate = parent_dir / f"session{session_num}-{date_str}"
+            if not candidate.exists():
+                # We found the first available folder
+                self.session_subdir = f"session{session_num}-{date_str}"
+                break
+            # Only increment if the folder has files inside it
+            if list(candidate.glob("*.csv")):
+                session_num += 1
+            else:
+                self.session_subdir = f"session{session_num}-{date_str}"
+                break
+        
+        print(f"Computed session folder: {self.session_subdir}")
 
         # Add session info to title
         session_info = f"[Demo Mode]" if is_demo else f"[Patient: {patient_id} | {time_point}]"

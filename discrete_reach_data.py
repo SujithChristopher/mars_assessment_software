@@ -157,10 +157,6 @@ class DiscreteReachData:
         Returns:
             Full path to saved CSV file, or None if demo mode
         """
-        if self.is_demo:
-            print("Demo mode: Skipping data save.")
-            return None
-
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
