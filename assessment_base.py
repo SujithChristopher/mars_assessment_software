@@ -715,9 +715,13 @@ class BaseAssessmentWindow(QMainWindow):
                 pass
 
     def load_previous_assessment(self):
-        """Load most recent assessment of this type."""
-        self.previous_arom = MarsArom.find_latest_assessment(self.movement_type, patient_id=self.patient_id)
-        self.canvas.previous_arom = self.previous_arom
+        """Load most recent assessment of this type (AROM types only)."""
+        if self.movement_type in ["AP", "ML", "MLAP"]:
+            self.previous_arom = MarsArom.find_latest_assessment(self.movement_type, patient_id=self.patient_id)
+            self.canvas.previous_arom = self.previous_arom
+        else:
+            self.previous_arom = None
+            self.canvas.previous_arom = None
 
     def on_start_assessment(self):
         """Start assessment - transition INIT -> ASSESSROM."""
