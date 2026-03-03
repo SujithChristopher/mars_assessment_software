@@ -51,13 +51,13 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         """Assessment type name."""
         return "DiscreteReaching"
 
-    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, parent=None):
+    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, session_subdir=None, parent=None):
         self.dr_state = DiscreteReachState.INACTIVE
         self.dr_data = None
         self.current_peak_index = 0
         self.holding_start_time = 0.0
         
-        super().__init__(mars, patient_id, time_point, is_demo, parent)
+        super().__init__(mars, patient_id, time_point, is_demo, session_subdir, parent)
         self.canvas.instruction_text = "Discrete Reaching: Press robot button to begin"
         
         # Load latest MLAP to initialize targets
@@ -254,6 +254,6 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
     def save_and_close(self):
         """Save results and exit window."""
         if self.dr_data:
-            filepath = self.dr_data.save_to_csv()
+            filepath = self.dr_data.save_to_csv(session_subdir=self.session_subdir)
             print(f"Discrete Reaching assessment saved: {filepath}")
         self.close()

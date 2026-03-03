@@ -142,11 +142,12 @@ class ArmWeightData:
             ArmWeightTarget.CENTER
         ])
 
-    def save_to_csv(self, base_dir: str = "data") -> str:
+    def save_to_csv(self, base_dir: str = "data", session_subdir: str = None) -> str:
         """Save arm weight data to CSV file.
 
         Args:
             base_dir: Base directory for data storage
+            session_subdir: Pre-determined session subdirectory (e.g. 'session1-2026-03-02')
 
         Returns:
             Full path to saved CSV file, or None if demo mode
@@ -161,32 +162,35 @@ class ArmWeightData:
         # Target folder structure: data/<patient_id>/<time_point>/session<N>-<date>/
         date_str = self.timestamp.strftime("%Y-%m-%d")
         
-        # Build path based on patient_id and time_point
         if self.patient_id:
-            session_dir = Path(base_dir) / self.patient_id / self.time_point
+            parent_dir = Path(base_dir) / self.patient_id / self.time_point
         else:
-            session_dir = Path(base_dir)
+            parent_dir = Path(base_dir)
 
-        # Find the most recent session folder for today
-        session_num = 1
-        latest_session = None
-        while True:
-            session_folder = session_dir / f"session{session_num}-{date_str}"
-            if session_folder.exists():
-                latest_session = session_folder
-                session_num += 1
-            else:
-                break
-
-        # Use latest session or create new one
-        if latest_session is None:
-            latest_session = session_dir / f"session1-{date_str}"
-            latest_session.mkdir(parents=True, exist_ok=True)
+        if session_subdir:
+            session_folder = parent_dir / session_subdir
+            session_folder.mkdir(parents=True, exist_ok=True)
+        else:
+            # Find the most recent session folder for today
+            session_num = 1
+            session_folder = None
+            while True:
+                candidate = parent_dir / f"session{session_num}-{date_str}"
+                if candidate.exists():
+                    session_folder = candidate
+                    session_num += 1
+                else:
+                    break
+            
+            # Use latest session or create new one
+            if session_folder is None:
+                session_folder = parent_dir / f"session1-{date_str}"
+                session_folder.mkdir(parents=True, exist_ok=True)
 
         # Create filename: armweight-{date}-{time}.csv
         time_str = self.timestamp.strftime("%H-%M-%S")
         filename = f"armweight-{date_str}-{time_str}.csv"
-        filepath = latest_session / filename
+        filepath = session_folder / filename
 
         # Write CSV
         with open(filepath, 'w', newline='') as f:
@@ -234,7 +238,16 @@ class ArmWeightData:
         Returns:
             ArmWeightData instance with loaded data
         """
-        arm_weight = cls()
+        # Try to extract patient info from path if possible
+        # Path: data/<patient_id>/<time_point>/session.../
+        path_parts = Path(filepath).parts
+        patient_id = None
+        time_point = "A0"
+        if len(path_parts) >= 4:
+            patient_id = path_parts[-4]
+            time_point = path_parts[-3]
+
+        arm_weight = cls(patient_id=patient_id, time_point=time_point)
 
         with open(filepath, 'r') as f:
             reader = csv.reader(f)

@@ -145,11 +145,12 @@ class MarsArom:
             return 0.0
         return abs(self.adjusted_top[0] - self.adjusted_bottom[0]) * 100.0
 
-    def save_to_csv(self, base_dir: str = "data") -> str:
+    def save_to_csv(self, base_dir: str = "data", session_subdir: str = None) -> str:
         """Save AROM data to CSV file in session folder.
 
         Args:
             base_dir: Base directory for data storage
+            session_subdir: Pre-determined session subdirectory (e.g. 'session1-2026-03-02')
 
         Returns:
             Full path to saved CSV file, or None if demo mode
@@ -166,22 +167,26 @@ class MarsArom:
         
         # Build path based on patient_id and time_point
         if self.patient_id:
-            session_dir = Path(base_dir) / self.patient_id / self.time_point
+            parent_dir = Path(base_dir) / self.patient_id / self.time_point
         else:
-            session_dir = Path(base_dir)
+            parent_dir = Path(base_dir)
 
-        # Find next session number for today
-        session_num = 1
-        while True:
-            session_folder = session_dir / f"session{session_num}-{date_str}"
-            if not session_folder.exists():
-                session_folder.mkdir(parents=True, exist_ok=True)
-                break
-            # Check if this session has files - if yes, increment
-            if list(session_folder.glob("*.csv")):
-                session_num += 1
-            else:
-                break
+        if session_subdir:
+            session_folder = parent_dir / session_subdir
+            session_folder.mkdir(parents=True, exist_ok=True)
+        else:
+            # Original auto-increment logic if no subdir provided
+            session_num = 1
+            while True:
+                session_folder = parent_dir / f"session{session_num}-{date_str}"
+                if not session_folder.exists():
+                    session_folder.mkdir(parents=True, exist_ok=True)
+                    break
+                # Check if this session has files - if yes, increment
+                if list(session_folder.glob("*.csv")):
+                    session_num += 1
+                else:
+                    break
 
         # Create filename: {movement}-{date}-{time}.csv
         time_str = self.timestamp.strftime("%H-%M-%S")
@@ -195,6 +200,7 @@ class MarsArom:
             # Header
             writer.writerow([
                 'datetime', 'plane_angle', 'movement_type',
+                'patient_id', 'time_point',
                 'raw_top_y', 'raw_top_z',
                 'raw_bottom_y', 'raw_bottom_z',
                 'raw_left_y', 'raw_left_z',
@@ -210,7 +216,9 @@ class MarsArom:
             writer.writerow([
                 self.timestamp.isoformat(),
                 self.plane_angle,
-                f"{self.patient_id}/{self.time_point}/{self.movement_type}" if self.patient_id else self.movement_type,
+                self.movement_type,
+                self.patient_id if self.patient_id else '',
+                self.time_point if self.time_point else '',
                 self.raw_top[0] if self.raw_top else '',
                 self.raw_top[1] if self.raw_top else '',
                 self.raw_bottom[0] if self.raw_bottom else '',
@@ -261,27 +269,39 @@ class MarsArom:
             data_dict = dict(zip(header, data_row))
 
             # Create instance
-            arom = cls(data_dict['movement_type'])
+            movement_type = data_dict['movement_type']
+            patient_id = data_dict.get('patient_id')
+            time_point = data_dict.get('time_point', 'A0')
+            
+            # Backward compatibility for polluted movement_type strings (e.g. "123/A0/MLAP")
+            if '/' in movement_type:
+                parts = movement_type.split('/')
+                if len(parts) >= 3:
+                    movement_type = parts[-1]
+                    if not patient_id: patient_id = parts[0]
+                    if time_point == 'A0': time_point = parts[1]
+
+            arom = cls(movement_type, patient_id=patient_id, time_point=time_point)
             arom.timestamp = datetime.fromisoformat(data_dict['datetime'])
             arom.plane_angle = float(data_dict['plane_angle'])
 
             # Load corners
-            if data_dict['raw_top_y']:
+            if data_dict.get('raw_top_y'):
                 arom.raw_top = (float(data_dict['raw_top_y']), float(data_dict['raw_top_z']))
-            if data_dict['raw_bottom_y']:
+            if data_dict.get('raw_bottom_y'):
                 arom.raw_bottom = (float(data_dict['raw_bottom_y']), float(data_dict['raw_bottom_z']))
-            if data_dict['raw_left_y']:
+            if data_dict.get('raw_left_y'):
                 arom.raw_left = (float(data_dict['raw_left_y']), float(data_dict['raw_left_z']))
-            if data_dict['raw_right_y']:
+            if data_dict.get('raw_right_y'):
                 arom.raw_right = (float(data_dict['raw_right_y']), float(data_dict['raw_right_z']))
 
-            if data_dict['adjusted_top_y']:
+            if data_dict.get('adjusted_top_y'):
                 arom.adjusted_top = (float(data_dict['adjusted_top_y']), float(data_dict['adjusted_top_z']))
-            if data_dict['adjusted_bottom_y']:
+            if data_dict.get('adjusted_bottom_y'):
                 arom.adjusted_bottom = (float(data_dict['adjusted_bottom_y']), float(data_dict['adjusted_bottom_z']))
-            if data_dict['adjusted_left_y']:
+            if data_dict.get('adjusted_left_y'):
                 arom.adjusted_left = (float(data_dict['adjusted_left_y']), float(data_dict['adjusted_left_z']))
-            if data_dict['adjusted_right_y']:
+            if data_dict.get('adjusted_right_y'):
                 arom.adjusted_right = (float(data_dict['adjusted_right_y']), float(data_dict['adjusted_right_z']))
 
             # Skip empty row and trajectory header

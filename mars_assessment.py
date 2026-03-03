@@ -124,6 +124,7 @@ class MarsAssessmentLauncher(QMainWindow):
         self.patient_id = None
         self.time_point = "A0"
         self.is_demo = False
+        self.session_subdir = None
 
         # Assessment windows
         self.ap_window = None
@@ -256,6 +257,33 @@ class MarsAssessmentLauncher(QMainWindow):
         self.time_point = time_point
         self.is_demo = is_demo
         
+        # Determine session subdirectory once
+        if not is_demo:
+            from pathlib import Path
+            from datetime import datetime
+            date_str = datetime.now().strftime("%Y-%m-%d")
+            base_dir = "data"
+            parent_dir = Path(base_dir) / patient_id / time_point
+            
+            # Auto-increment session number
+            session_num = 1
+            while True:
+                candidate = parent_dir / f"session{session_num}-{date_str}"
+                if not candidate.exists():
+                    # We found the first available folder
+                    self.session_subdir = f"session{session_num}-{date_str}"
+                    break
+                # Only increment if the folder has files inside it
+                if list(candidate.glob("*.csv")):
+                    session_num += 1
+                else:
+                    self.session_subdir = f"session{session_num}-{date_str}"
+                    break
+            
+            print(f"Computed session folder: {self.session_subdir}")
+        else:
+            self.session_subdir = None
+
         # Add session info to title
         session_info = f"[Demo Mode]" if is_demo else f"[Patient: {patient_id} | {time_point}]"
         self.setWindowTitle(f"MARS Assessment Launcher {session_info}")
@@ -263,6 +291,8 @@ class MarsAssessmentLauncher(QMainWindow):
         # Switch to launcher scene
         self.stack.setCurrentWidget(self.launcher_widget)
         print(f"Session started: {session_info}")
+        if self.session_subdir:
+            print(f"Data will be saved to: {self.session_subdir}")
 
     def create_assessment_button(self, title: str, subtitle: str, callback) -> QPushButton:
         """Create a styled assessment button with title and subtitle.
@@ -475,7 +505,7 @@ class MarsAssessmentLauncher(QMainWindow):
             return
 
         if self.ap_window is None or not self.ap_window.isVisible():
-            self.ap_window = AssessmentAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self)
+            self.ap_window = AssessmentAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
             # Update canvas limb type
             self.ap_window.canvas.limb_type = self.limb_combo.currentText()
             self.ap_window.show()
@@ -489,7 +519,7 @@ class MarsAssessmentLauncher(QMainWindow):
             return
 
         if self.ml_window is None or not self.ml_window.isVisible():
-            self.ml_window = AssessmentMLWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self)
+            self.ml_window = AssessmentMLWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
             # Update canvas limb type
             self.ml_window.canvas.limb_type = self.limb_combo.currentText()
             self.ml_window.show()
@@ -503,7 +533,7 @@ class MarsAssessmentLauncher(QMainWindow):
             return
 
         if self.mlap_window is None or not self.mlap_window.isVisible():
-            self.mlap_window = AssessmentMLAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self)
+            self.mlap_window = AssessmentMLAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
             # Update canvas limb type
             self.mlap_window.canvas.limb_type = self.limb_combo.currentText()
             self.mlap_window.show()
@@ -518,7 +548,7 @@ class MarsAssessmentLauncher(QMainWindow):
 
         # Check if MLAP data exists (required for targets)
         from mars_arom_data import MarsArom
-        if MarsArom.find_latest_assessment("MLAP") is None:
+        if MarsArom.find_latest_assessment("MLAP", patient_id=self.patient_id) is None:
             reply = QMessageBox.question(self, "MLAP Data Required",
                                        "No MLAP assessment found. Discrete reaching requires MLAP targets.\n\n"
                                        "Do you want to launch it anyway?",
@@ -527,7 +557,7 @@ class MarsAssessmentLauncher(QMainWindow):
                 return
 
         if self.dr_window is None or not self.dr_window.isVisible():
-            self.dr_window = AssessmentDiscreteReachWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self)
+            self.dr_window = AssessmentDiscreteReachWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
             # Update canvas limb type
             self.dr_window.canvas.limb_type = self.limb_combo.currentText()
             self.dr_window.show()

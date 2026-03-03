@@ -596,12 +596,13 @@ class WorkspaceAssessmentCanvas(QWidget):
 class BaseAssessmentWindow(QMainWindow):
     """Base class for workspace assessment windows."""
 
-    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, parent=None):
+    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, session_subdir=None, parent=None):
         super().__init__(parent)
         self.mars = mars
         self.patient_id = patient_id
         self.time_point = time_point
         self.is_demo = is_demo
+        self.session_subdir = session_subdir
         self.state = AromAssessState.INIT
         self.adjust_state = AromAdjustState.NONE
 
@@ -851,7 +852,7 @@ class BaseAssessmentWindow(QMainWindow):
             return
 
         # Save to CSV
-        filepath = self.current_arom.save_to_csv()
+        filepath = self.current_arom.save_to_csv(session_subdir=self.session_subdir)
         print(f"Saved assessment to: {filepath}")
 
         # Update state

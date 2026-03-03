@@ -51,7 +51,7 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
         """Assessment type."""
         return "MLAP"
 
-    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, parent=None):
+    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, session_subdir=None, parent=None):
         # Arm weight state management
         self.arm_weight_state = ArmWeightState.INACTIVE
         self.arm_weight_data = None
@@ -59,7 +59,7 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
         self.current_target_index = 0
         self.recording_start_time = 0.0
 
-        super().__init__(mars, patient_id, time_point, is_demo, parent)
+        super().__init__(mars, patient_id, time_point, is_demo, session_subdir, parent)
         # Configure canvas for MLAP-specific visualization
         self.canvas.instruction_text = "MLAP Assessment: Press robot button to begin"
 
@@ -289,7 +289,7 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
             return
 
         # Save arm weight data
-        filepath = self.arm_weight_data.save_to_csv()
+        filepath = self.arm_weight_data.save_to_csv(session_subdir=self.session_subdir)
         print(f"Saved arm weight assessment to: {filepath}")
 
         # Close window
