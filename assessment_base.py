@@ -167,12 +167,12 @@ class WorkspaceAssessmentCanvas(QWidget):
         if self.show_grid:
             self._draw_grid(painter)
 
-        # Axes
-        self._draw_axes(painter)
+        # Axes (Removed per request)
+        # self._draw_axes(painter)
 
-        # Previous AROM (light blue, semi-transparent)
-        if self.previous_arom is not None:
-            self._draw_arom_boundaries(painter, self.previous_arom, QColor(100, 150, 255, 100))
+        # Previous AROM (Removed per request)
+        # if self.previous_arom is not None:
+        #     self._draw_arom_boundaries(painter, self.previous_arom, QColor(100, 150, 255, 100))
 
         # Trajectory (gray line) - only during AROM assessment
         if len(self.trajectory) > 1 and self.arm_weight_state is None:
@@ -183,9 +183,7 @@ class WorkspaceAssessmentCanvas(QWidget):
             if self.state == AromAssessState.ADJUST:
                 # Red with handles during adjustment
                 self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 200), True)
-            elif self.arm_weight_state is not None:
-                # Light gray during arm weight assessment
-                self._draw_arom_boundaries(painter, self.current_arom, QColor(150, 150, 150, 150), False)
+            # Reference drawing during Arm Weight/Discrete Reach removed per request
 
         # Arm weight targets (if active)
         if self.arm_weight_state is not None and len(self.arm_weight_targets) > 0:
