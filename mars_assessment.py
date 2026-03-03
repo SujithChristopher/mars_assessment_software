@@ -22,6 +22,7 @@ from qtmars import QtMars
 from assessment_ap import AssessmentAPWindow
 from assessment_ml import AssessmentMLWindow
 from assessment_mlap import AssessmentMLAPWindow
+from assessment_armweight import AssessmentArmWeightWindow
 from assessment_discreach import AssessmentDiscreteReachWindow
 
 
@@ -132,6 +133,7 @@ class MarsAssessmentLauncher(QMainWindow):
         self.ap_window = None
         self.ml_window = None
         self.mlap_window = None
+        self.aw_window = None
         self.dr_window = None
 
         # Completion tracking
@@ -232,6 +234,9 @@ class MarsAssessmentLauncher(QMainWindow):
         
         # MLAP Assessment Row
         self.add_assessment_row("MLAP", "⊕  Assess Combined (MLAP)", "(Full Workspace Envelope)", self.launch_mlap_assessment)
+        
+        # Arm Weight Assessment Row
+        self.add_assessment_row("ArmWeight", "⚖  Assess Arm Weight", "(Force recording at 5 targets)", self.launch_arm_weight_assessment)
         
         # Discrete Reaching Assessment Row
         self.add_assessment_row("DiscreteReaching", "⊕  Assess Discrete Reaching", "(Home to 75% workspace targets)", self.launch_discrete_reach_assessment)
@@ -563,6 +568,28 @@ class MarsAssessmentLauncher(QMainWindow):
             self.mlap_window.canvas.limb_type = self.limb_combo.currentText()
             self.mlap_window.show()
             print("Launched MLAP assessment window")
+
+    def launch_arm_weight_assessment(self):
+        """Launch Arm Weight assessment window."""
+        if not self.mars or not self.mars.is_connected():
+            QMessageBox.warning(self, "Connection Required",
+                              "Please connect to device before starting assessment.")
+            return
+
+        # Check if MLAP data exists (required for targets)
+        from mars_arom_data import MarsArom
+        if MarsArom.find_latest_assessment("MLAP", patient_id=self.patient_id) is None:
+            QMessageBox.warning(self, "MLAP Data Required",
+                              "No MLAP assessment found. Arm Weight requires MLAP targets.")
+            return
+
+        if self.aw_window is None or not self.aw_window.isVisible():
+            self.aw_window = AssessmentArmWeightWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
+            self.connect_assessment_signals(self.aw_window)
+            # Update canvas limb type
+            self.aw_window.canvas.limb_type = self.limb_combo.currentText()
+            self.aw_window.show()
+            print("Launched Arm Weight assessment window")
 
     def launch_discrete_reach_assessment(self):
         """Launch Discrete Reaching assessment window."""

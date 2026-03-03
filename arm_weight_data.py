@@ -26,6 +26,17 @@ class ArmWeightTarget(Enum):
     CENTER = 5
 
 
+class ArmWeightState(Enum):
+    """Arm weight assessment state machine."""
+    INACTIVE = 0
+    INIT = 1
+    MOVING_TO_TARGET = 2
+    IN_TARGET = 3
+    RECORDING = 4
+    TARGET_COMPLETE = 5
+    ALL_DONE = 6
+
+
 class ArmWeightData:
     """Data model for arm weight assessment.
 

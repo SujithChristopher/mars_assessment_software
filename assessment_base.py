@@ -400,8 +400,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         - Completed: Small black filled box
         """
         # Import here to avoid circular dependency
-        from arm_weight_data import ArmWeightTarget
-        from assessment_mlap import ArmWeightState
+        from arm_weight_data import ArmWeightTarget, ArmWeightState
 
         # Target size in meters
         TARGET_SIZE = 0.05  # 5 cm
