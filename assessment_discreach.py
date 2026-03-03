@@ -175,21 +175,39 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                 self.dr_data.stop_target_recording()
                 
                 if target == DiscreteReachTarget.HOME:
-                    # Home hold complete -> move to peak
-                    peak_target = self.PEAK_SEQUENCE[self.current_peak_index]
-                    self.dr_state = DiscreteReachState.MOVING_TO_TARGET
-                    self.canvas.current_discrete_reach_target = peak_target
-                    self.canvas.discrete_reach_state = self.dr_state
-                    self.canvas.instruction_text = f"Home hold complete! Reach to {peak_target.name}."
+                    # Home hold complete -> move to current peak or finish
+                    if self.current_peak_index >= len(self.PEAK_SEQUENCE):
+                        # Final home hold complete
+                        self.dr_state = DiscreteReachState.ALL_DONE
+                        self.canvas.discrete_reach_state = self.dr_state
+                        self.canvas.instruction_text = "Assessment finished! Click 'Complete Assessment' to save."
+                        self.save_btn.setVisible(True)
+                        print("Discrete Reaching assessment finished.")
+                    else:
+                        peak_target = self.PEAK_SEQUENCE[self.current_peak_index]
+                        self.dr_state = DiscreteReachState.MOVING_TO_TARGET
+                        self.canvas.current_discrete_reach_target = peak_target
+                        self.canvas.discrete_reach_state = self.dr_state
+                        self.canvas.instruction_text = f"Home hold complete! Reach to {peak_target.name}."
                 else:
                     # Peak target hold complete
                     self.canvas.completed_discrete_targets.add(target)
-                    self.dr_state = DiscreteReachState.TARGET_COMPLETE
-                    self.canvas.discrete_reach_state = self.dr_state
-                    self.canvas.instruction_text = f"{target.name} complete! Return to Home."
                     print(f"Completed {target.name}")
-                    # Automatically transition to next step after a second
-                    QTimer.singleShot(1000, self.auto_transition_after_hold)
+                    
+                    if self.current_peak_index + 1 >= len(self.PEAK_SEQUENCE):
+                        # This was the last peak target. 
+                        # We must return to Home one last time to finish the loop.
+                        self.dr_state = DiscreteReachState.TARGET_COMPLETE
+                        self.canvas.discrete_reach_state = self.dr_state
+                        self.canvas.instruction_text = f"{target.name} complete! Return to Home to finish."
+                        # Use a state that indicates we are finished with peaks and just need to reach home
+                        QTimer.singleShot(1000, self.transition_to_final_home)
+                    else:
+                        # Transition back to Home for the next peak
+                        self.dr_state = DiscreteReachState.TARGET_COMPLETE
+                        self.canvas.discrete_reach_state = self.dr_state
+                        self.canvas.instruction_text = f"{target.name} complete! Return to Home."
+                        QTimer.singleShot(1000, self.auto_transition_after_hold)
 
     def _is_at_pos(self, y: float, z: float, target_pos: tuple) -> bool:
         """Check if current position is within tolerance of target."""
@@ -198,21 +216,21 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         dz = abs(z - target_pos[1])
         return dy < self.TARGET_TOLERANCE and dz < self.TARGET_TOLERANCE
 
+    def transition_to_final_home(self):
+        """Transition back to Home after the last peak target."""
+        self.current_peak_index = len(self.PEAK_SEQUENCE) # Signal we are done with peaks
+        self.dr_state = DiscreteReachState.MOVING_TO_HOME
+        self.canvas.discrete_reach_state = self.dr_state
+        self.canvas.current_discrete_reach_target = DiscreteReachTarget.HOME
+        self.canvas.instruction_text = "Return to Home for final hold."
+
     def auto_transition_after_hold(self):
-        """Post-hold transition logic."""
-        if self.current_peak_index + 1 >= len(self.PEAK_SEQUENCE):
-            # All assessment targets finished
-            self.dr_state = DiscreteReachState.ALL_DONE
-            self.canvas.discrete_reach_state = self.dr_state
-            self.canvas.instruction_text = "Assessment finished! Click 'Complete Assessment' to save."
-            self.save_btn.setVisible(True)
-        else:
-            # Advance to next target in sequence
-            self.current_peak_index += 1
-            self.dr_state = DiscreteReachState.MOVING_TO_HOME
-            self.canvas.discrete_reach_state = self.dr_state
-            self.canvas.current_discrete_reach_target = DiscreteReachTarget.HOME
-            self.canvas.instruction_text = "Return to Home position."
+        """Advance to next target in sequence."""
+        self.current_peak_index += 1
+        self.dr_state = DiscreteReachState.MOVING_TO_HOME
+        self.canvas.discrete_reach_state = self.dr_state
+        self.canvas.current_discrete_reach_target = DiscreteReachTarget.HOME
+        self.canvas.instruction_text = "Return to Home position."
 
     def handle_button_release(self):
         """Handle device button release for state machine transitions."""

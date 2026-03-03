@@ -58,6 +58,7 @@ class PatientEntryWidget(QWidget):
         self.id_input = QLineEdit()
         self.id_input.setPlaceholderText("Enter Homer ID (e.g. HOMER_001)")
         self.id_input.setMinimumHeight(35)
+        self.id_input.textChanged.connect(self.update_lock_status)
         id_input_layout.addWidget(self.id_input)
         
         self.demo_btn = QPushButton("Demo Mode")
@@ -76,8 +77,16 @@ class PatientEntryWidget(QWidget):
         self.time_combo = QComboBox()
         self.time_combo.addItems(["A0", "A1", "A2"])
         self.time_combo.setMinimumHeight(35)
+        self.time_combo.currentIndexChanged.connect(self.update_lock_status)
         time_layout.addWidget(self.time_combo, 1)
         layout.addWidget(time_group)
+
+        # Lock Status Label
+        self.lock_label = QLabel("⚠️ This time point is LOCKED and cannot be modified.")
+        self.lock_label.setStyleSheet("color: #f44336; font-weight: bold; margin-bottom: 5px;")
+        self.lock_label.setAlignment(Qt.AlignCenter)
+        self.lock_label.setVisible(False)
+        layout.addWidget(self.lock_label)
 
         # Enter Button
         self.enter_btn = QPushButton("Enter Launcher")
@@ -112,6 +121,37 @@ class PatientEntryWidget(QWidget):
         
         time_point = self.time_combo.currentText()
         self.entry_complete.emit(patient_id, time_point, False)
+
+    def update_lock_status(self):
+        """Check if selected time point is locked."""
+        patient_id = self.id_input.text().strip()
+        time_point = self.time_combo.currentText()
+        
+        if not patient_id:
+            self.lock_label.setVisible(False)
+            self.enter_btn.setEnabled(True)
+            return
+            
+        from pathlib import Path
+        lock_file = Path("data") / patient_id / time_point / ".locked"
+        
+        if lock_file.exists():
+            self.lock_label.setVisible(True)
+            self.enter_btn.setEnabled(False)
+            self.enter_btn.setStyleSheet("background-color: #cccccc; color: grey;")
+        else:
+            self.lock_label.setVisible(False)
+            self.enter_btn.setEnabled(True)
+            self.enter_btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #4CAF50;
+                    color: white;
+                    font-size: 11pt;
+                }
+                QPushButton:hover {
+                    background-color: #45a049;
+                }
+            """)
 
 
 class MarsAssessmentLauncher(QMainWindow):
@@ -243,6 +283,29 @@ class MarsAssessmentLauncher(QMainWindow):
 
         main_layout.addWidget(assess_group)
 
+        # Session Finalization Group
+        lock_group = QGroupBox("Session Finalization")
+        lock_layout = QVBoxLayout(lock_group)
+        
+        self.lock_btn = QPushButton("Complete & Lock All Assessments")
+        self.lock_btn.setMinimumHeight(50)
+        self.lock_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                font-weight: bold;
+                font-size: 11pt;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+        """)
+        self.lock_btn.clicked.connect(self.on_complete_and_lock)
+        lock_layout.addWidget(self.lock_btn)
+        
+        main_layout.addWidget(lock_group)
+        main_layout.addStretch()
+
     def start_main_launcher(self, patient_id, time_point, is_demo):
         """Transition from patient entry to main assessment launcher."""
         self.patient_id = patient_id
@@ -283,6 +346,14 @@ class MarsAssessmentLauncher(QMainWindow):
         
         # Switch to launcher scene
         self.stack.setCurrentWidget(self.launcher_widget)
+        
+        # Disable lock button in demo mode
+        self.lock_btn.setEnabled(not is_demo)
+        if is_demo:
+            self.lock_btn.setToolTip("Locking is disabled in Demo Mode")
+        else:
+            self.lock_btn.setToolTip("Finalize and lock this time point for this patient")
+
         print(f"Session started: {session_info}")
         if self.session_subdir:
             print(f"Data will be saved to: {self.session_subdir}")
@@ -568,6 +639,46 @@ class MarsAssessmentLauncher(QMainWindow):
             self.mlap_window.canvas.limb_type = self.limb_combo.currentText()
             self.mlap_window.show()
             print("Launched MLAP assessment window")
+
+    def on_complete_and_lock(self):
+        """Ask for confirmation and lock the session."""
+        reply = QMessageBox.warning(self, "Confirm Finalization",
+                                   f"Are you sure you want to COMPLETE and LOCK all assessments for "
+                                   f"Patient: {self.patient_id}, Time Point: {self.time_point}?\n\n"
+                                   "WARNING: You will NOT be able to add or modify any data for this "
+                                   "specific time point once locked.",
+                                   QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        
+        if reply == QMessageBox.Yes:
+            self.lock_session()
+            QMessageBox.information(self, "Session Locked", 
+                                  f"Assessment phase {self.time_point} for patient {self.patient_id} has been locked.")
+            # Return to entry screen
+            self.patient_id = None
+            self.session_subdir = None
+            self.completed_assessments.clear()
+            # Reset button styles
+            for btn in self.assessment_btns.values():
+                btn.setStyleSheet("")
+            for btn in self.redo_btns.values():
+                btn.setVisible(False)
+            
+            self.entry_widget.id_input.clear()
+            self.stack.setCurrentWidget(self.entry_widget)
+
+    def lock_session(self):
+        """Create a .locked file in the patient/timepoint directory."""
+        from pathlib import Path
+        from datetime import datetime
+        lock_dir = Path("data") / self.patient_id / self.time_point
+        if not lock_dir.exists():
+            lock_dir.mkdir(parents=True, exist_ok=True)
+        
+        lock_file = lock_dir / ".locked"
+        with open(lock_file, "w") as f:
+            f.write(f"Locked on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        print(f"Locked session: {lock_dir}")
 
     def launch_arm_weight_assessment(self):
         """Launch Arm Weight assessment window."""
