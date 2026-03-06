@@ -47,6 +47,7 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # UI state
         self.state = AromAssessState.INIT
+        self.current_trial = 1
         self.instruction_text = "Press robot button to begin"
         self.show_grid = False
         self.countdown_timer = None # None or int/float
@@ -172,20 +173,18 @@ class WorkspaceAssessmentCanvas(QWidget):
         # Current AROM boundaries
         if self.current_arom is not None:
             if self.state == AromAssessState.TRIAL_PAUSE:
-                # Show trial, average (blue), and global max (red)
-                # Trial boundary in light blue
-                self._draw_trial_boundaries(painter, self.current_arom, QColor(100, 150, 255, 100))
-                # Average boundary in solid blue
-                self._draw_average_boundaries(painter, self.current_arom, QColor(0, 0, 255, 150))
-                # Global max in light red
-                self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 100))
+                # Current Trial boundary in Blue
+                self._draw_trial_boundaries(painter, self.current_arom, QColor(0, 100, 255, 100))
+                # Average boundary in Red
+                self._draw_average_boundaries(painter, self.current_arom, QColor(255, 0, 0, 150))
             elif self.arm_weight_state is not None:
                 # Light gray reference for arm weight assessment
                 self._draw_arom_boundaries(painter, self.current_arom, QColor(150, 150, 150, 150), False)
             elif self.state == AromAssessState.DONE:
-                # Show average (blue) and final global max (red)
-                self._draw_average_boundaries(painter, self.current_arom, QColor(0, 0, 255, 150))
-                self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 180), False)
+                # Average boundary in Red
+                self._draw_average_boundaries(painter, self.current_arom, QColor(255, 0, 0, 150))
+                # Trial boundary in Blue
+                self._draw_trial_boundaries(painter, self.current_arom, QColor(0, 100, 255, 120))
 
         # Arm weight targets (if active)
         if self.arm_weight_state is not None and len(self.arm_weight_targets) > 0:
@@ -415,48 +414,95 @@ class WorkspaceAssessmentCanvas(QWidget):
         painter.drawEllipse(screen_pos[0] - 8, screen_pos[1] - 8, 16, 16)
 
     def _draw_instruction_text(self, painter):
-        """Draw instruction text overlay."""
-        painter.setPen(QPen(QColor(0, 0, 0), 1))
-        painter.setFont(QFont("Arial", 12, QFont.Bold))
-        painter.drawText(10, 30, self.instruction_text)
+        """Draw instruction text overlay with a background pill."""
+        if not self.instruction_text:
+            return
+
+        font = QFont("Segoe UI", 12, QFont.Medium)
+        painter.setFont(font)
+        metrics = painter.fontMetrics()
+        text_width = metrics.horizontalAdvance(self.instruction_text)
+        text_height = metrics.height()
+
+        padding_x = 20
+        padding_y = 10
+        rect_width = text_width + 2 * padding_x
+        rect_height = text_height + 2 * padding_y
+        
+        # Center horizontally at top
+        x = (self.width() - rect_width) // 2
+        y = 20
+        
+        # Draw background pill
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setBrush(QBrush(QColor(0, 0, 0, 180)))
+        painter.setPen(Qt.NoPen)
+        painter.drawRoundedRect(x, y, rect_width, rect_height, rect_height / 2, rect_height / 2)
+        
+        # Draw text
+        painter.setPen(QPen(Qt.white))
+        painter.drawText(x + padding_x, y + padding_y + metrics.ascent(), self.instruction_text)
 
     def _draw_range_text(self, painter):
-        """Draw range measurements based on assessment type."""
+        """Draw beautified range measurements in a side panel."""
         if self.current_arom is None:
             return
 
-        painter.setFont(QFont("Arial", 10, QFont.Bold))
+        # Panel dimensions and position
+        panel_width = 240
+        panel_height = 160
+        margin = 20
+        x = self.width() - panel_width - margin
+        y = (self.height() - panel_height) // 2
         
-        ml_max = self.current_arom.ml_range_cm
-        ap_max = self.current_arom.ap_range_cm
+        # Draw panel background (Glassmorphism effect)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setBrush(QBrush(QColor(255, 255, 255, 220)))
+        painter.setPen(QPen(QColor(200, 200, 200, 150), 1))
+        painter.drawRoundedRect(x, y, panel_width, panel_height, 12, 12)
+        
+        # Stats setup
         ml_avg = self.current_arom.ml_average_cm
         ap_avg = self.current_arom.ap_average_cm
-        
-        # Get last trial range
         ml_trial = self.current_arom.trial_ranges[-1][0] if self.current_arom.trial_ranges else 0.0
         ap_trial = self.current_arom.trial_ranges[-1][1] if self.current_arom.trial_ranges else 0.0
 
-        y_pos = 30
-        x_pos = self.width() - 200 # Adjust x_pos dynamically
+        # Title
+        painter.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        painter.setPen(QPen(QColor(50, 50, 50)))
+        painter.drawText(x + 15, y + 30, f"{self.movement_type} RESULTS")
+        
+        painter.setPen(QPen(QColor(220, 220, 220), 1))
+        painter.drawLine(x + 15, y + 40, x + panel_width - 15, y + 40)
 
-        def draw_stat_row(label, ml, ap, color, y):
-            painter.setPen(QPen(color, 1))
+        # Content rows
+        font_label = QFont("Segoe UI", 9, QFont.Medium)
+        font_value = QFont("Segoe UI", 10, QFont.Bold)
+        
+        def draw_stat_group(label, ml, ap, color, top):
+            painter.setFont(font_label)
+            painter.setPen(QPen(QColor(100, 100, 100)))
+            painter.drawText(x + 15, top, label)
+            
+            painter.setFont(font_value)
+            painter.setPen(QPen(color))
             if self.movement_type == "AP":
-                text = f"{label} AP: {ap:.2f} cm"
+                text = f"{ap:.1f} cm"
             elif self.movement_type == "ML":
-                text = f"{label} ML: {ml:.2f} cm"
+                text = f"{ml:.1f} cm"
             else: # MLAP
-                text = f"{label} ML: {ml:.2f}, AP: {ap:.2f} cm"
-            painter.drawText(x_pos, y, text)
+                text = f"ML: {ml:.1f}, AP: {ap:.1f} cm"
+            
+            painter.drawText(x + 15, top + 20, text)
 
-        # Trial (Black)
-        draw_stat_row("Trial", ml_trial, ap_trial, QColor(0, 0, 0), y_pos)
+        row_y = y + 70
+        spacing = 50
         
-        # Max (Red)
-        draw_stat_row("Max", ml_max, ap_max, QColor(255, 0, 0), y_pos + 20)
+        # Current (Blue)
+        draw_stat_group(f"Current Trial ({self.current_trial})", ml_trial, ap_trial, QColor(0, 100, 220), row_y)
         
-        # Avg (Blue)
-        draw_stat_row("Avg", ml_avg, ap_avg, QColor(0, 0, 255), y_pos + 40)
+        # Average (Red)
+        draw_stat_group("Average (All Trials)", ml_avg, ap_avg, QColor(220, 0, 0), row_y + spacing)
 
     def _draw_arm_weight_targets(self, painter):
         """Draw arm weight target boxes.
@@ -965,7 +1011,13 @@ class BaseAssessmentWindow(QMainWindow):
             print(f"[Button] No action for state: {self.state}")
 
     def update_canvas(self):
-        """Periodic canvas update."""
+        """Update canvas state and repaint."""
+        if self.mars and self.state in (AromAssessState.ASSESSROM, AromAssessState.TRIAL_PAUSE, AromAssessState.TRIAL_READY, AromAssessState.DONE):
+            self.canvas.current_pos = self.mars.ep_pos_in_plane[1:]
+            self.canvas.limb_type = self.mars.limb
+
+        self.canvas.state = self.state
+        self.canvas.current_trial = self.current_trial
         self.canvas.update()
 
     def on_recalibrate(self):
