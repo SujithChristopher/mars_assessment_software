@@ -594,7 +594,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         from assessment_discreach import DiscreteReachState
 
         # Target size in meters
-        TARGET_SIZE = 0.05  # 5 cm
+        TARGET_SIZE = 0.08  # 8 cm
         TARGET_REACH_SCALE = 2.0
         TARGET_COMPLETE_SCALE = 0.6
 
@@ -604,6 +604,10 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         for target, pos in self.discrete_reach_targets.items():
             if target == DiscreteReachTarget.NONE or pos is None:
+                continue
+
+            # Only draw the current target or the Home target if we're moving back to it
+            if target != self.current_discrete_reach_target:
                 continue
 
             y, z = pos
@@ -670,6 +674,10 @@ class WorkspaceAssessmentCanvas(QWidget):
         painter.setPen(QPen(QColor(200, 200, 200), 2, Qt.DashLine))
 
         for target in [DiscreteReachTarget.TOP, DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
+            # Only draw the active path to the current target
+            if target != self.current_discrete_reach_target:
+                continue
+
             target_pos = self.discrete_reach_targets.get(target)
             if target_pos:
                 target_screen = self.robot_to_screen(target_pos[0], target_pos[1])
