@@ -233,6 +233,16 @@ class MarsArom:
         return sum(r[1] for r in self.trial_ranges) / len(self.trial_ranges)
 
     @property
+    def average_ml_range_cm(self):
+        if not self.trial_ranges: return self.ml_range_cm
+        return sum(r[0] for r in self.trial_ranges) / len(self.trial_ranges)
+
+    @property
+    def average_ap_range_cm(self):
+        if not self.trial_ranges: return self.ap_range_cm
+        return sum(r[1] for r in self.trial_ranges) / len(self.trial_ranges)
+
+    @property
     def average_top(self):
         if not self.trial_corners_history: return None
         return (sum(c[0][0] for c in self.trial_corners_history) / len(self.trial_corners_history),
@@ -382,17 +392,23 @@ class MarsArom:
 
             # Read header
             header = next(reader)
+            
+            # Read all data rows
+            rows = []
+            for row in reader:
+                if row and row[0]: # Check if row is not empty
+                    rows.append(dict(zip(header, row)))
+            
+            if not rows:
+                return None
 
-            # Read first data row (usually Trial 1)
-            data_row = next(reader)
-            data_dict = dict(zip(header, data_row))
-
-            # Create instance
+            # Create instance from first row
+            data_dict = rows[0]
             movement_type = data_dict['movement_type']
             patient_id = data_dict.get('patient_id')
             time_point = data_dict.get('time_point', 'A0')
             
-            # Backward compatibility for polluted movement_type strings (e.g. "123/A0/MLAP")
+            # Backward compatibility for polluted movement_type strings
             if '/' in movement_type:
                 parts = movement_type.split('/')
                 if len(parts) >= 3:
@@ -404,19 +420,37 @@ class MarsArom:
             arom.timestamp = datetime.fromisoformat(data_dict['datetime'])
             arom.plane_angle = float(data_dict['plane_angle'])
 
-            # Load corners and summary metrics (if available in new format)
-            # For new multi-row format, we might need to read all rows to reconstruct MarsArom
-            # But usually we only need the Global MAX for current logic
-            
-            # Basic loading of corners from first row (might be Trial 1)
-            if data_dict.get('top_y'):
-                 arom.adjusted_top = (float(data_dict['top_y']), float(data_dict['top_z']))
-            if data_dict.get('bottom_y'):
-                 arom.adjusted_bottom = (float(data_dict['bottom_y']), float(data_dict['bottom_z']))
-            if data_dict.get('left_y'):
-                 arom.adjusted_left = (float(data_dict['left_y']), float(data_dict['left_z']))
-            if data_dict.get('right_y'):
-                 arom.adjusted_right = (float(data_dict['right_y']), float(data_dict['right_z']))
+            # Populate trial data from rows
+            for d in rows:
+                trial_label = d.get('trial_number', '')
+                
+                # Extract corner positions if they exist
+                corners = None
+                if d.get('top_y'):
+                    corners = (
+                        (float(d['top_y']), float(d['top_z'])),
+                        (float(d['bottom_y']), float(d['bottom_z'])),
+                        (float(d['left_y']), float(d['left_z'])),
+                        (float(d['right_y']), float(d['right_z']))
+                    )
+
+                if "Trial" in trial_label:
+                    # Individual trial row
+                    if corners:
+                        arom.trial_corners_history.append(corners)
+                    
+                    if d.get('ml_range_cm') and d.get('ap_range_cm'):
+                        arom.trial_ranges.append((float(d['ml_range_cm']), float(d['ap_range_cm'])))
+                
+                elif trial_label == "AVERAGE":
+                    # Skip populating properties directly, they are calculated via trial_corners_history
+                    pass
+                
+                elif trial_label == "MAXIMUM" or (not trial_label and not arom.adjusted_top):
+                    # Maximum/Summary row or legacy single-row format
+                    if corners:
+                        arom.adjusted_top, arom.adjusted_bottom, arom.adjusted_left, arom.adjusted_right = corners
+                        arom.raw_top, arom.raw_bottom, arom.raw_left, arom.raw_right = corners
 
             # Try to load raw trajectory from separate file if it exists
             try:
@@ -432,19 +466,6 @@ class MarsArom:
                         for row in raw_reader:
                             if len(row) >= 3:
                                 arom.raw_trajectory.append([float(row[1]), float(row[2]), int(row[0])])
-                else:
-                    # Backward compatibility
-                    rows = [data_row] + list(reader)
-                    if rows:
-                        start_idx = -1
-                        for i, r in enumerate(rows):
-                            if r and "Trajectory Data" in r[0]:
-                                start_idx = i + 2
-                                break
-                        if start_idx != -1 and start_idx < len(rows):
-                            for r in rows[start_idx:]:
-                                if len(r) >= 2 and r[0] and r[1]:
-                                    arom.raw_trajectory.append([float(r[0]), float(r[1]), 1])
             except Exception as e:
                 print(f"Error loading trajectory: {e}")
 

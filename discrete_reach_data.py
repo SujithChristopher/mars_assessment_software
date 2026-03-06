@@ -75,16 +75,17 @@ class DiscreteReachData:
         Args:
             mlap_arom: MarsArom instance with MLAP assessment data
         """
-        bottom = mlap_arom.adjusted_bottom  # (y, z)
-        top = mlap_arom.adjusted_top
-        left = mlap_arom.adjusted_left
-        right = mlap_arom.adjusted_right
+        # Use average corners for targets for better consistency
+        bottom = mlap_arom.average_bottom or mlap_arom.adjusted_bottom  # (y, z)
+        top = mlap_arom.average_top or mlap_arom.adjusted_top
+        left = mlap_arom.average_left or mlap_arom.adjusted_left
+        right = mlap_arom.average_right or mlap_arom.adjusted_right
 
         if not all([bottom, top, left, right]):
             print("Warning: Missing MLAP corner points for discrete reaching.")
             return
 
-        # HOME is the bottom vertex
+        # HOME is the bottom vertex (using average)
         self.target_positions[DiscreteReachTarget.HOME] = bottom
 
         # TOP target = Bottom + 0.75 * (Top - Bottom)

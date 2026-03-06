@@ -94,19 +94,23 @@ class ArmWeightData:
             mlap_arom: MarsArom instance with MLAP assessment data
             limb_type: "LEFT" or "RIGHT" - not used, kept for compatibility
         """
-        # Use adjusted corners from MLAP assessment
-        # robot_to_screen coordinate transformation handles limb flipping
-        self.target_positions[ArmWeightTarget.TOP] = mlap_arom.adjusted_top
-        self.target_positions[ArmWeightTarget.RIGHT] = mlap_arom.adjusted_right
-        self.target_positions[ArmWeightTarget.BOTTOM] = mlap_arom.adjusted_bottom
-        self.target_positions[ArmWeightTarget.LEFT] = mlap_arom.adjusted_left
+        # Use average corners from MLAP assessment for more consistent targets
+        # Fallback to adjusted corners if average is not available (e.g. legacy data)
+        self.target_positions[ArmWeightTarget.TOP] = mlap_arom.average_top or mlap_arom.adjusted_top
+        self.target_positions[ArmWeightTarget.RIGHT] = mlap_arom.average_right or mlap_arom.adjusted_right
+        self.target_positions[ArmWeightTarget.BOTTOM] = mlap_arom.average_bottom or mlap_arom.adjusted_bottom
+        self.target_positions[ArmWeightTarget.LEFT] = mlap_arom.average_left or mlap_arom.adjusted_left
 
         # Center is average of all 4 corners
-        center_y = (mlap_arom.adjusted_top[0] + mlap_arom.adjusted_right[0] +
-                   mlap_arom.adjusted_bottom[0] + mlap_arom.adjusted_left[0]) / 4.0
-        center_z = (mlap_arom.adjusted_top[1] + mlap_arom.adjusted_right[1] +
-                   mlap_arom.adjusted_bottom[1] + mlap_arom.adjusted_left[1]) / 4.0
-        self.target_positions[ArmWeightTarget.CENTER] = (center_y, center_z)
+        t, r, b, l = (self.target_positions[ArmWeightTarget.TOP], 
+                      self.target_positions[ArmWeightTarget.RIGHT],
+                      self.target_positions[ArmWeightTarget.BOTTOM],
+                      self.target_positions[ArmWeightTarget.LEFT])
+        
+        if all([t, r, b, l]):
+            center_y = (t[0] + r[0] + b[0] + l[0]) / 4.0
+            center_z = (t[1] + r[1] + b[1] + l[1]) / 4.0
+            self.target_positions[ArmWeightTarget.CENTER] = (center_y, center_z)
 
     def start_assessment(self):
         """Begin arm weight assessment."""
