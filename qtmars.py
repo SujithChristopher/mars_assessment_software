@@ -68,6 +68,7 @@ class QtMars(QObject):
         self._currt = None
         self._prevt = None
         self._deltimes = []
+        self._time_diffs = [] # Store recent time differences
         self._framerate = 0.0
         # Version and device name
         self._version = ""
@@ -512,11 +513,17 @@ class QtMars(QObject):
             for i in range(10, 10 + N * 4, 4)
         ]
 
-        # Update frame rate calculation
+        # Update frame rate calculation using a moving average
         if self._prevruntime > 0:
             time_diff = self._runtime - self._prevruntime
             if time_diff > 0:
-                self._framerate = 1.0 / time_diff
+                self._time_diffs.append(time_diff)
+                if len(self._time_diffs) > 10:
+                    self._time_diffs.pop(0)
+                
+                avg_time_diff = sum(self._time_diffs) / len(self._time_diffs)
+                self._framerate = 1.0 / avg_time_diff
+
 
         # Error handling
         if self.error != 0:
