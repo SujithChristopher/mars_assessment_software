@@ -53,6 +53,13 @@ class MarsArom:
         self.adjusted_left = None
         self.adjusted_right = None
 
+        # Trial-specific information
+        self.trial_top = None
+        self.trial_bottom = None
+        self.trial_left = None
+        self.trial_right = None
+        self.trial_ranges = []  # List of (ml_range_cm, ap_range_cm) tuples
+
         self.raw_trajectory = [] # Stores all points across trials
         self.trial_trajectory = [] # Only the points for the current trial
         self._is_recording = False
@@ -68,13 +75,23 @@ class MarsArom:
         """Pause data recording between trials and compute *cumulative* corners."""
         self._is_recording = False
         
+        # Compute corners for the *current trial* only
+        trial_corners = self._compute_corners_for_points(self.trial_trajectory)
+        if trial_corners:
+            self.trial_top, self.trial_bottom, self.trial_left, self.trial_right = trial_corners
+            
+            # Update global boundaries (expansion-only)
+            self._update_global_boundaries(trial_corners)
+            
+            # Store trial ranges for averaging
+            ml = abs(self.trial_right[1] - self.trial_left[1]) * 100.0
+            ap = abs(self.trial_top[0] - self.trial_bottom[0]) * 100.0
+            self.trial_ranges.append((ml, ap))
+
         # Save the trial trajectory to the main trajectory list
         if self.trial_trajectory:
             self.raw_trajectory.extend(self.trial_trajectory)
             self.trial_trajectory = []
-
-        # Compute corners using ALL points collected so far
-        self._compute_corners()
 
     def resume_assessment(self):
         """Resume recording for the next trial, starting with a fresh visual trajectory."""
@@ -97,80 +114,112 @@ class MarsArom:
         """Stop data collection entirely and compute final corner points."""
         self._is_recording = False
         
+        # Compute corners for the *current trial* only
+        trial_corners = self._compute_corners_for_points(self.trial_trajectory)
+        if trial_corners:
+            self.trial_top, self.trial_bottom, self.trial_left, self.trial_right = trial_corners
+            
+            # Update global boundaries (expansion-only)
+            self._update_global_boundaries(trial_corners)
+            
+            # Store trial ranges for averaging
+            ml = abs(self.trial_right[1] - self.trial_left[1]) * 100.0
+            ap = abs(self.trial_top[0] - self.trial_bottom[0]) * 100.0
+            self.trial_ranges.append((ml, ap))
+
         # Combine final trial points
         if self.trial_trajectory:
             self.raw_trajectory.extend(self.trial_trajectory)
             self.trial_trajectory = []
-            
-        self._compute_corners()
 
-    def _compute_corners(self):
-        """Compute corner points using 5% statistical extreme averaging.
-
-        For each boundary:
-        - Sort points by relevant axis
-        - Take extreme 5% of points
-        - Average to get corner position
-        """
-        if len(self.raw_trajectory) < 20:
-            # Need at least 20 points for 5% calculation
-            return
+    def _compute_corners_for_points(self, points):
+        """Compute corner points for a specific list of points."""
+        if len(points) < 5:  # Reduced threshold for trial-specific corners
+            return None
 
         # Calculate 5% count (minimum 1 point)
-        n_extreme = max(1, int(len(self.raw_trajectory) * 0.05))
-
-        # Extract y and z coordinates
-        y_coords = [p[0] for p in self.raw_trajectory]
-        z_coords = [p[1] for p in self.raw_trajectory]
+        n_extreme = max(1, int(len(points) * 0.05))
 
         # Sort by Y axis for top/bottom (AP direction)
-        sorted_by_y = sorted(self.raw_trajectory, key=lambda p: p[0])
-        top_points = sorted_by_y[-n_extreme:]  # Highest Y values
-        bottom_points = sorted_by_y[:n_extreme]  # Lowest Y values
+        sorted_by_y = sorted(points, key=lambda p: p[0])
+        top_pts = sorted_by_y[-n_extreme:]
+        bottom_pts = sorted_by_y[:n_extreme]
 
-        # Average the extreme points
-        self.raw_top = (
-            sum(p[0] for p in top_points) / len(top_points),
-            sum(p[1] for p in top_points) / len(top_points)
-        )
-        self.raw_bottom = (
-            sum(p[0] for p in bottom_points) / len(bottom_points),
-            sum(p[1] for p in bottom_points) / len(bottom_points)
-        )
+        top = (sum(p[0] for p in top_pts) / len(top_pts), sum(p[1] for p in top_pts) / len(top_pts))
+        bottom = (sum(p[0] for p in bottom_pts) / len(bottom_pts), sum(p[1] for p in bottom_pts) / len(bottom_pts))
 
         # Sort by Z axis for left/right (ML direction)
-        sorted_by_z = sorted(self.raw_trajectory, key=lambda p: p[1])
-        left_points = sorted_by_z[:n_extreme]  # Lowest Z values (left)
-        right_points = sorted_by_z[-n_extreme:]  # Highest Z values (right)
+        sorted_by_z = sorted(points, key=lambda p: p[1])
+        left_pts = sorted_by_z[:n_extreme]
+        right_pts = sorted_by_z[-n_extreme:]
 
-        self.raw_left = (
-            sum(p[0] for p in left_points) / len(left_points),
-            sum(p[1] for p in left_points) / len(left_points)
-        )
-        self.raw_right = (
-            sum(p[0] for p in right_points) / len(right_points),
-            sum(p[1] for p in right_points) / len(right_points)
-        )
+        left = (sum(p[0] for p in left_pts) / len(left_pts), sum(p[1] for p in left_pts) / len(left_pts))
+        right = (sum(p[0] for p in right_pts) / len(right_pts), sum(p[1] for p in right_pts) / len(right_pts))
 
-        # Initialize adjusted corners same as raw
-        self.adjusted_top = self.raw_top
-        self.adjusted_bottom = self.raw_bottom
-        self.adjusted_left = self.raw_left
-        self.adjusted_right = self.raw_right
+        return top, bottom, left, right
+
+    def _update_global_boundaries(self, trial_corners):
+        """Update global adjusted boundaries based on new trial corners (expansion only)."""
+        t_top, t_bottom, t_left, t_right = trial_corners
+
+        # Initialize global corners if they don't exist
+        if self.adjusted_top is None:
+            self.adjusted_top, self.adjusted_bottom = t_top, t_bottom
+            self.adjusted_left, self.adjusted_right = t_left, t_right
+            self.raw_top, self.raw_bottom = t_top, t_bottom
+            self.raw_left, self.raw_right = t_left, t_right
+            return
+
+        # Expansion logic: update only if further from center/origin
+        # Using Y for Top (Max Y) and Bottom (Min Y)
+        if t_top[0] > self.adjusted_top[0]:
+            self.adjusted_top = t_top
+        if t_bottom[0] < self.adjusted_bottom[0]:
+            self.adjusted_bottom = t_bottom
+            
+        # Using Z for Left (Min Z) and Right (Max Z)
+        if t_left[1] < self.adjusted_left[1]:
+            self.adjusted_left = t_left
+        if t_right[1] > self.adjusted_right[1]:
+            self.adjusted_right = t_right
+
+        # Keep raw corners synced with adjusted for now
+        self.raw_top, self.raw_bottom = self.adjusted_top, self.adjusted_bottom
+        self.raw_left, self.raw_right = self.adjusted_left, self.adjusted_right
+
+    def _compute_corners(self):
+        """Deprecated: Compute corner points using all points. 
+        Now we use expansion-only logic in _update_global_boundaries.
+        """
+        pass
 
     @property
     def ml_range_cm(self) -> float:
-        """Calculate medio-lateral range in centimeters."""
+        """Calculate medio-lateral range in centimeters (Global Maximum)."""
         if self.adjusted_left is None or self.adjusted_right is None:
             return 0.0
         return abs(self.adjusted_right[1] - self.adjusted_left[1]) * 100.0
 
     @property
     def ap_range_cm(self) -> float:
-        """Calculate anterior-posterior range in centimeters."""
+        """Calculate anterior-posterior range in centimeters (Global Maximum)."""
         if self.adjusted_top is None or self.adjusted_bottom is None:
             return 0.0
         return abs(self.adjusted_top[0] - self.adjusted_bottom[0]) * 100.0
+
+    @property
+    def ml_average_cm(self) -> float:
+        """Calculate average medio-lateral range across trials."""
+        if not self.trial_ranges:
+            return 0.0
+        return sum(r[0] for r in self.trial_ranges) / len(self.trial_ranges)
+
+    @property
+    def ap_average_cm(self) -> float:
+        """Calculate average anterior-posterior range across trials."""
+        if not self.trial_ranges:
+            return 0.0
+        return sum(r[1] for r in self.trial_ranges) / len(self.trial_ranges)
 
     def save_to_csv(self, base_dir: str = "data", session_subdir: str = None) -> str:
         """Save AROM data to CSV file in session folder.
@@ -232,7 +281,9 @@ class MarsArom:
                 'adjusted_bottom_y', 'adjusted_bottom_z',
                 'adjusted_left_y', 'adjusted_left_z',
                 'adjusted_right_y', 'adjusted_right_z',
-                'ml_range_cm', 'ap_range_cm'
+                'ml_range_cm', 'ap_range_cm',
+                'ml_average_cm', 'ap_average_cm',
+                'trial_ranges'
             ])
 
             # Data row
@@ -259,7 +310,10 @@ class MarsArom:
                 self.adjusted_right[0] if self.adjusted_right else '',
                 self.adjusted_right[1] if self.adjusted_right else '',
                 f"{self.ml_range_cm:.2f}",
-                f"{self.ap_range_cm:.2f}"
+                f"{self.ap_range_cm:.2f}",
+                f"{self.ml_average_cm:.2f}",
+                f"{self.ap_average_cm:.2f}",
+                ";".join([f"{ml:.2f},{ap:.2f}" for ml, ap in self.trial_ranges])
             ])
 
             # Trajectory data section
@@ -327,6 +381,17 @@ class MarsArom:
             if data_dict.get('adjusted_right_y'):
                 arom.adjusted_right = (float(data_dict['adjusted_right_y']), float(data_dict['adjusted_right_z']))
 
+            # Load trial ranges
+            if data_dict.get('trial_ranges'):
+                try:
+                    range_str = data_dict['trial_ranges']
+                    for r_pair in range_str.split(';'):
+                        if r_pair:
+                            ml, ap = r_pair.split(',')
+                            arom.trial_ranges.append((float(ml), float(ap)))
+                except Exception as e:
+                    print(f"Error loading trial ranges: {e}")
+
             # Skip empty row and trajectory header
             next(reader)  # Empty row
             next(reader)  # "Trajectory Data"
@@ -359,9 +424,6 @@ class MarsArom:
         # Determine search pattern
         if patient_id:
             # Look in any time point folder for this patient
-            pattern = f"{patient_id}/*/*/ {movement_type.lower()}-*.csv"
-            # Adjusting pattern to handle the session folders
-            # path: data/<patient_id>/<time_point>/session.../movement-*.csv
             pattern = f"{patient_id}/*/*/{movement_type.lower()}-*.csv"
         else:
             # Original behavior (recursive search)

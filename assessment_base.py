@@ -185,6 +185,12 @@ class WorkspaceAssessmentCanvas(QWidget):
             if self.state == AromAssessState.ADJUST:
                 # Red with handles during adjustment
                 self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 200), True)
+            elif self.state == AromAssessState.TRIAL_PAUSE:
+                # Show both trial specifically and global max
+                # Trial boundary in blue-ish
+                self._draw_trial_boundaries(painter, self.current_arom, QColor(100, 150, 255, 150))
+                # Global max in red
+                self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 100))
             elif self.arm_weight_state is not None:
                 # Light gray reference for arm weight assessment
                 self._draw_arom_boundaries(painter, self.current_arom, QColor(150, 150, 150, 150), False)
@@ -360,6 +366,24 @@ class WorkspaceAssessmentCanvas(QWidget):
                                   point[1] - handle_size // 2,
                                   handle_size, handle_size)
 
+    def _draw_trial_boundaries(self, painter, arom: MarsArom, color: QColor):
+        """Draw trial-specific boundaries (corners from the most recent trial)."""
+        if arom.trial_top is None or arom.trial_bottom is None:
+            return
+        
+        # Save global adjusted for a moment to reuse draw methods
+        orig_top, orig_bottom = arom.adjusted_top, arom.adjusted_bottom
+        orig_left, orig_right = arom.adjusted_left, arom.adjusted_right
+        
+        arom.adjusted_top, arom.adjusted_bottom = arom.trial_top, arom.trial_bottom
+        arom.adjusted_left, arom.adjusted_right = arom.trial_left, arom.trial_right
+        
+        self._draw_arom_boundaries(painter, arom, color, False)
+        
+        # Restore
+        arom.adjusted_top, arom.adjusted_bottom = orig_top, orig_bottom
+        arom.adjusted_left, arom.adjusted_right = orig_left, orig_right
+
     def _draw_cursor(self, painter):
         """Draw current position cursor."""
         if self.current_pos is None:
@@ -382,20 +406,38 @@ class WorkspaceAssessmentCanvas(QWidget):
         if self.current_arom is None:
             return
 
-        painter.setPen(QPen(QColor(0, 0, 0), 1))
-        painter.setFont(QFont("Arial", 11, QFont.Bold))
+        painter.setFont(QFont("Arial", 10, QFont.Bold))
+        
+        ml_max = self.current_arom.ml_range_cm
+        ap_max = self.current_arom.ap_range_cm
+        ml_avg = self.current_arom.ml_average_cm
+        ap_avg = self.current_arom.ap_average_cm
+        
+        # Get last trial range
+        ml_trial = self.current_arom.trial_ranges[-1][0] if self.current_arom.trial_ranges else 0.0
+        ap_trial = self.current_arom.trial_ranges[-1][1] if self.current_arom.trial_ranges else 0.0
 
-        ml_range = self.current_arom.ml_range_cm
-        ap_range = self.current_arom.ap_range_cm
+        y_pos = 30
+        x_pos = 500
 
-        if self.movement_type == "AP":
-            text = f"AP: {ap_range:.2f} cm"
-        elif self.movement_type == "ML":
-            text = f"ML: {ml_range:.2f} cm"
-        else: # MLAP
-            text = f"ML: {ml_range:.2f} cm, AP: {ap_range:.2f} cm"
-            
-        painter.drawText(550, 30, text)
+        def draw_stat_row(label, ml, ap, color, y):
+            painter.setPen(QPen(color, 1))
+            if self.movement_type == "AP":
+                text = f"{label} AP: {ap:.2f} cm"
+            elif self.movement_type == "ML":
+                text = f"{label} ML: {ml:.2f} cm"
+            else: # MLAP
+                text = f"{label} ML: {ml:.2f}, AP: {ap:.2f} cm"
+            painter.drawText(x_pos, y, text)
+
+        # Trial (Black)
+        draw_stat_row("Trial", ml_trial, ap_trial, QColor(0, 0, 0), y_pos)
+        
+        # Max (Red)
+        draw_stat_row("Max", ml_max, ap_max, QColor(255, 0, 0), y_pos + 20)
+        
+        # Avg (Blue)
+        draw_stat_row("Avg", ml_avg, ap_avg, QColor(0, 0, 255), y_pos + 40)
 
     def _draw_arm_weight_targets(self, painter):
         """Draw arm weight target boxes.
