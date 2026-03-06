@@ -1,9 +1,10 @@
 import sys
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QGridLayout, QPushButton,
-                               QLineEdit, QGroupBox, QComboBox, QSlider)
+                               QLineEdit, QGroupBox, QComboBox, QSlider, QMessageBox)
 from PySide6.QtCore import Qt, QTimer
 from qtmars import QtMars
+import time
 
 
 class MarsDisplayWindow(QMainWindow):
@@ -279,9 +280,16 @@ class MarsDisplayWindow(QMainWindow):
 
                 # Execute connection sequence
                 self.mars.get_version()
+                time.sleep(0.05)
                 self.mars.start_sensorstream()
+                time.sleep(0.05)
                 self.mars.set_diagnostic_mode()
+                time.sleep(0.05)
                 self.mars.send_heartbeat()
+                time.sleep(0.05)
+                
+                # Send initial limb choice
+                self.mars.set_limb(self.limb_combo.currentText())
 
                 # Start heartbeat timer (3 seconds = 3000 ms)
                 self.heartbeat_timer.start(3000)
@@ -335,10 +343,44 @@ class MarsDisplayWindow(QMainWindow):
         """Handle calibrate button click."""
         if self.mars and self.mars.is_connected():
             try:
-                self.mars.calibrate()
-                print("Calibration command sent")
+                QMessageBox.information(self, "Calibration Steps",
+                                      "To calibrate the device:\n"
+                                      "1. Move the device to the fully extended (horizontal) position.\n"
+                                      "2. Ensure all joint angles are roughly 0.\n"
+                                      "3. Press the physical button on the MARS device to confirm.\n\n"
+                                      "Click OK to begin.")
+                # Disconnect if previously connected
+                try:
+                    self.mars.btnreleased.disconnect(self._do_calibrate)
+                except Exception:
+                    pass
+                self.mars.btnreleased.connect(self._do_calibrate)
+                print("Waiting for physical button press to calibrate...")
             except Exception as e:
-                print(f"Error during calibration: {e}")
+                print(f"Error preparing calibration: {e}")
+
+    def _do_calibrate(self):
+        """Helper to send calibration command when physical button is pressed."""
+        if self.mars and self.mars.is_connected():
+            try:
+                self.mars.calibrate()
+                print("Calibration command sent via physical button press.")
+                try:
+                    self.mars.btnreleased.disconnect(self._do_calibrate)
+                except Exception:
+                    pass
+                QTimer.singleShot(500, self._check_calibration_success)
+            except Exception as e:
+                print(f"Error sending calibration command: {e}")
+
+    def _check_calibration_success(self):
+        """Check if calibration was successful."""
+        if self.mars and self.mars.is_connected():
+            if getattr(self.mars, 'calibration', 0) == 1:
+                QMessageBox.information(self, "Calibration Complete", "Device successfully calibrated.")
+            else:
+                QMessageBox.warning(self, "Calibration Pending", 
+                                  "Device not calibrated yet. Please ensure device is still and angles are close to 0.")
 
     def on_slider_value_changed(self, value):
         """Update position target display when slider changes."""
@@ -350,24 +392,43 @@ class MarsDisplayWindow(QMainWindow):
         """Handle set target button click."""
         if self.mars and self.mars.is_connected():
             try:
+                # Ensure device is calibrated before setting position mode
+                if getattr(self.mars, 'calibration', 0) == 0:
+                    print("Warning: Please calibrate the device first.")
+                    return
+                    
                 slider_value = self.pos_target_slider.value()
                 target_value = -slider_value  # Convert to negative range
-
-                # Set control type to POSITION
-                self.mars.set_control_type("POSITION")
-                # Delay before setting target to allow device to process control type change
-                QTimer.singleShot(200, lambda: self._set_target_value(target_value))
-                print(f"Position control enabled, target set to: {target_value}")
+                
+                self._plane_setup_attempts = 0
+                self._plane_target_value = target_value
+                self._plane_timer = QTimer()
+                self._plane_timer.timeout.connect(self._plane_setup_step)
+                self._plane_timer.start(100) # Check every 100ms
             except Exception as e:
                 print(f"Error setting target: {e}")
 
-    def _set_target_value(self, target_value):
-        """Helper method to set target value after delay."""
-        if self.mars and self.mars.is_connected():
-            try:
-                self.mars.set_control_target(target_value)
-            except Exception as e:
-                print(f"Error setting control target: {e}")
+    def _plane_setup_step(self):
+        """Helper method to set target value after confirming control type."""
+        if not self.mars or not self.mars.is_connected():
+            self._plane_timer.stop()
+            return
+            
+        try:
+            if self.mars.controltype != 1: # 1 is POSITION mode
+                self.mars.set_control_type("POSITION")
+                self._plane_setup_attempts += 1
+                if self._plane_setup_attempts > 20: # 2 seconds timeout
+                    self._plane_timer.stop()
+                    print("Failed to set POSITION mode. Ensure device is properly calibrated.")
+                return
+                
+            self.mars.set_control_target(self._plane_target_value)
+            print(f"Position control enabled, target set to: {self._plane_target_value}")
+            self._plane_timer.stop()
+        except Exception as e:
+            print(f"Error setting control target: {e}")
+            self._plane_timer.stop()
 
     def update_display(self):
         if not self.mars:

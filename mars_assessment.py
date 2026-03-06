@@ -10,6 +10,7 @@ Email: siva82kb@gmail.com
 """
 
 import sys
+import time
 import serial.tools.list_ports
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QPushButton, QLabel, QComboBox,
@@ -162,6 +163,10 @@ class MarsAssessmentLauncher(QMainWindow):
         self.mars = None
         self.heartbeat_timer = QTimer()
         self.heartbeat_timer.timeout.connect(self.send_heartbeat)
+
+        # Plane setup timer
+        self._plane_timer = QTimer()
+        self._plane_setup_attempts = 0
 
         # Session state
         self.patient_id = None
@@ -469,9 +474,16 @@ class MarsAssessmentLauncher(QMainWindow):
 
             # Connection sequence
             self.mars.get_version()
+            time.sleep(0.05)
             self.mars.start_sensorstream()
+            time.sleep(0.05)
             self.mars.set_diagnostic_mode()
+            time.sleep(0.05)
             self.mars.send_heartbeat()
+            time.sleep(0.05)
+            
+            # Send initial limb choice
+            self.mars.set_limb(self.limb_combo.currentText())
 
             # Start heartbeat timer (every 3 seconds)
             self.heartbeat_timer.start(3000)
@@ -553,17 +565,48 @@ class MarsAssessmentLauncher(QMainWindow):
         """Handle calibrate button click."""
         if self.mars and self.mars.is_connected():
             try:
-                self.mars.calibrate()
-                QMessageBox.information(self, "Calibration",
-                                      "Calibration command sent.\n\n"
-                                      "Move the device to the calibration positions:\n"
-                                      "1. Fully extended position\n"
-                                      "2. Press device button to confirm\n\n"
-                                      "Calibration is required before position control.")
-                print("Calibration command sent")
+                QMessageBox.information(self, "Calibration Steps",
+                                      "To calibrate the device:\n"
+                                      "1. Move the device to the fully extended (horizontal) position.\n"
+                                      "2. Ensure all joint angles are roughly 0.\n"
+                                      "3. Press the physical button on the MARS device to confirm.\n\n"
+                                      "Click OK to begin.")
+                # Disconnect if previously connected to avoid multiple connections
+                try:
+                    self.mars.btnreleased.disconnect(self._do_calibrate)
+                except Exception:
+                    pass
+                # Connect the signal
+                self.mars.btnreleased.connect(self._do_calibrate)
+                print("Waiting for physical button press to calibrate...")
             except Exception as e:
                 QMessageBox.warning(self, "Command Error",
-                                  f"Calibration failed: {str(e)}")
+                                  f"Failed to setup calibration: {str(e)}")
+
+    def _do_calibrate(self):
+        """Helper to send calibration command when physical button is pressed."""
+        if self.mars and self.mars.is_connected():
+            try:
+                self.mars.calibrate()
+                print("Calibration command sent via physical button press.")
+                try:
+                    self.mars.btnreleased.disconnect(self._do_calibrate)
+                except Exception:
+                    pass
+                # Check for calibration success via a short delay
+                QTimer.singleShot(500, self._check_calibration_success)
+            except Exception as e:
+                print(f"Error sending calibration command: {e}")
+
+    def _check_calibration_success(self):
+        """Check if calibration was successful."""
+        if self.mars and self.mars.is_connected():
+            if getattr(self.mars, 'calibration', 0) == 1:
+                QMessageBox.information(self, "Calibration Complete", "Device successfully calibrated.")
+            else:
+                QMessageBox.warning(self, "Calibration Pending", 
+                                  "Device not calibrated yet. Please ensure device is still and angles are close to 0.")
+
 
     def on_set_plane(self):
         """Handle set plane button click - sets robot to -90 degrees.
@@ -574,26 +617,44 @@ class MarsAssessmentLauncher(QMainWindow):
         """
         if self.mars and self.mars.is_connected():
             try:
-                # Set control type to POSITION (exactly like mars_diagnostics.py)
-                self.mars.set_control_type("POSITION")
+                # Ensure device is calibrated before setting position mode
+                if getattr(self.mars, 'calibration', 0) == 0:
+                    QMessageBox.warning(self, "Not Calibrated", "Please calibrate the device first.")
+                    return
 
-                # Delay before setting target to allow device to process control type change
-                QTimer.singleShot(200, self._set_plane_target)
+                # Repeatedly try to set control type and target
+                self._plane_setup_attempts = 0
+                self._plane_timer = QTimer()
+                self._plane_timer.timeout.connect(self._plane_setup_step)
+                self._plane_timer.start(100) # Check every 100ms
 
-                print("Position control enabled, target set to: -90")
             except Exception as e:
                 QMessageBox.warning(self, "Command Error",
-                                  f"Failed to set plane: {str(e)}")
+                                  f"Failed to start setting plane: {str(e)}")
 
-    def _set_plane_target(self):
-        """Helper to set plane target value after delay."""
-        if self.mars and self.mars.is_connected():
-            try:
-                # Target value needs to be negative (like in mars_diagnostics.py)
-                self.mars.set_control_target(-90.0)
-                print("Plane target value sent: -90.0")
-            except Exception as e:
-                print(f"Error setting control target: {e}")
+    def _plane_setup_step(self):
+        """Helper to set plane target by confirming control type first."""
+        if not self.mars or not self.mars.is_connected():
+            self._plane_timer.stop()
+            return
+            
+        try:
+            # First ensure control type is POSITION
+            if self.mars.controltype != 1: # 1 is POSITION mode
+                self.mars.set_control_type("POSITION")
+                self._plane_setup_attempts += 1
+                if self._plane_setup_attempts > 20: # Timeout after 2 seconds
+                    self._plane_timer.stop()
+                    QMessageBox.warning(self, "Timeout", "Failed to set POSITION mode. Please check if device is calibrated properly.")
+                return
+            
+            # Control type is now POSITION, so we can safely set target
+            self.mars.set_control_target(-90.0)
+            print("Plane target value sent: -90.0")
+            self._plane_timer.stop()
+        except Exception as e:
+            print(f"Error setting control target: {e}")
+            self._plane_timer.stop()
 
     def launch_ap_assessment(self):
         """Launch AP (Anterior-Posterior) assessment window."""
