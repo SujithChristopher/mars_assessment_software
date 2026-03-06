@@ -36,8 +36,6 @@ class WorkspaceAssessmentCanvas(QWidget):
 
     def __init__(self, movement_type="MLAP", parent=None):
         super().__init__(parent)
-        self.setMinimumSize(800, 800)
-        self.setMaximumSize(800, 800)
         self.movement_type = movement_type  # AP, ML, or MLAP
 
         # Data to visualize
@@ -96,15 +94,15 @@ class WorkspaceAssessmentCanvas(QWidget):
         if self.limb_type == "RIGHT":
             unity_x = -unity_x
 
-        # Convert Unity units to screen pixels
-        # Canvas is 800x800, center at 400,400
-        # Unity range of ~-5 to +5 should map to screen pixels
-        # Using 60 pixels per Unity unit (10 units * 60 = 600 pixels for workspace)
-        pixels_per_unity_unit = 60.0
+        # Dynamic scaling based on window size
+        # We want to fit ~12 Unity units into the smaller dimension
+        canvas_center_x = self.width() / 2
+        canvas_center_y = self.height() / 2
+        pixels_per_unity_unit = min(self.width(), self.height()) / 14.0
 
-        # Apply same transformation for both limbs (flip handled above)
-        x_screen = 400 + unity_x * pixels_per_unity_unit
-        y_screen = 400 - unity_y * pixels_per_unity_unit  # Flip Y (screen coords go down)
+        # Convert Unity units to screen pixels
+        x_screen = canvas_center_x + unity_x * pixels_per_unity_unit
+        y_screen = canvas_center_y - unity_y * pixels_per_unity_unit  # Flip Y (screen coords go down)
 
         return (int(x_screen), int(y_screen))
 
@@ -126,14 +124,16 @@ class WorkspaceAssessmentCanvas(QWidget):
         z_center = mdef.WORKSPACE_Z_CENTER
         y_center = mdef.WORKSPACE_Y_CENTER
 
-        pixels_per_unity_unit = 60.0
+        canvas_center_x = self.width() / 2
+        canvas_center_y = self.height() / 2
+        pixels_per_unity_unit = min(self.width(), self.height()) / 14.0
 
         # Convert screen pixels to Unity units
-        unity_x = (x_screen - 400) / pixels_per_unity_unit
-        unity_y = -(y_screen - 400) / pixels_per_unity_unit
+        unity_x = (x_screen - canvas_center_x) / pixels_per_unity_unit
+        unity_y = -(y_screen - canvas_center_y) / pixels_per_unity_unit
 
         # Reverse the limb offset (matches forward transformation)
-        if self.limb_type == "LEFT":
+        if self.limb_type == "RIGHT": # Changed from LEFT to RIGHT to match the forward transformation
             unity_x = -unity_x
 
         # Convert Unity units to normalized coordinates
@@ -212,26 +212,35 @@ class WorkspaceAssessmentCanvas(QWidget):
             self._draw_range_text(painter)
 
     def _draw_grid(self, painter):
-        """Draw background grid with 5cm intervals."""
-        painter.setPen(QPen(QColor(220, 220, 220), 1))
-
-        # Vertical lines every 50 pixels (5cm)
-        for x in range(0, 801, 50):
-            painter.drawLine(x, 0, x, 800)
-
-        # Horizontal lines every 50 pixels (5cm)
-        for y in range(0, 801, 50):
-            painter.drawLine(0, y, 800, y)
+        """Draw background grid with adaptive intervals."""
+        painter.setPen(QPen(QColor(240, 240, 240), 1))
+        
+        # Pixels per Unity unit defines our coordinate system
+        ppu = min(self.width(), self.height()) / 14.0
+        
+        # Draw vertical lines
+        center_x = self.width() / 2
+        for i in range(-20, 21): # Covers a range of -20 to +20 Unity units from center
+            x = center_x + i * ppu
+            if 0 <= x <= self.width():
+                painter.drawLine(int(x), 0, int(x), self.height())
+                
+        # Draw horizontal lines
+        center_y = self.height() / 2
+        for i in range(-20, 21): # Covers a range of -20 to +20 Unity units from center
+            y = center_y + i * ppu
+            if 0 <= y <= self.height():
+                painter.drawLine(0, int(y), self.width(), int(y))
 
     def _draw_axes(self, painter):
         """Draw centered axes."""
         painter.setPen(QPen(QColor(150, 150, 150), 2))
 
         # Vertical center line
-        painter.drawLine(400, 0, 400, 800)
+        painter.drawLine(self.width() // 2, 0, self.width() // 2, self.height())
 
         # Horizontal center line
-        painter.drawLine(0, 400, 800, 400)
+        painter.drawLine(0, self.height() // 2, self.width(), self.height() // 2)
 
     def _draw_trajectory(self, painter):
         """Draw trajectory line."""
@@ -274,18 +283,18 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # Top line (max Y)
         top_y_screen = self.robot_to_screen(arom.adjusted_top[0], 0)[1]
-        painter.drawLine(0, top_y_screen, 800, top_y_screen)
+        painter.drawLine(0, top_y_screen, self.width(), top_y_screen)
 
         # Bottom line (min Y)
         bottom_y_screen = self.robot_to_screen(arom.adjusted_bottom[0], 0)[1]
-        painter.drawLine(0, bottom_y_screen, 800, bottom_y_screen)
+        painter.drawLine(0, bottom_y_screen, self.width(), bottom_y_screen)
 
         # Handles at center if requested
         if with_handles:
             handle_size = 10
             painter.setBrush(QBrush(color))
-            painter.drawEllipse(395, top_y_screen - handle_size // 2, handle_size, handle_size)
-            painter.drawEllipse(395, bottom_y_screen - handle_size // 2, handle_size, handle_size)
+            painter.drawEllipse(self.width() // 2 - handle_size // 2, top_y_screen - handle_size // 2, handle_size, handle_size)
+            painter.drawEllipse(self.width() // 2 - handle_size // 2, bottom_y_screen - handle_size // 2, handle_size, handle_size)
 
     def _draw_ml_boundaries(self, painter, arom: MarsArom, color: QColor, with_handles: bool = False):
         """Draw ML boundaries as two vertical lines.
@@ -303,18 +312,18 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # Left line (min Z)
         left_x_screen = self.robot_to_screen(0, arom.adjusted_left[1])[0]
-        painter.drawLine(left_x_screen, 0, left_x_screen, 800)
+        painter.drawLine(left_x_screen, 0, left_x_screen, self.height())
 
         # Right line (max Z)
         right_x_screen = self.robot_to_screen(0, arom.adjusted_right[1])[0]
-        painter.drawLine(right_x_screen, 0, right_x_screen, 800)
+        painter.drawLine(right_x_screen, 0, right_x_screen, self.height())
 
         # Handles at center if requested
         if with_handles:
             handle_size = 10
             painter.setBrush(QBrush(color))
-            painter.drawEllipse(left_x_screen - handle_size // 2, 395, handle_size, handle_size)
-            painter.drawEllipse(right_x_screen - handle_size // 2, 395, handle_size, handle_size)
+            painter.drawEllipse(left_x_screen - handle_size // 2, self.height() // 2 - handle_size // 2, handle_size, handle_size)
+            painter.drawEllipse(right_x_screen - handle_size // 2, self.height() // 2 - handle_size // 2, handle_size, handle_size)
 
     def _draw_mlap_boundaries(self, painter, arom: MarsArom, color: QColor, with_handles: bool = False):
         """Draw MLAP boundaries as a true quadrilateral.
@@ -428,7 +437,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         ap_trial = self.current_arom.trial_ranges[-1][1] if self.current_arom.trial_ranges else 0.0
 
         y_pos = 30
-        x_pos = 500
+        x_pos = self.width() - 200 # Adjust x_pos dynamically
 
         def draw_stat_row(label, ml, ap, color, y):
             painter.setPen(QPen(color, 1))
@@ -468,8 +477,8 @@ class WorkspaceAssessmentCanvas(QWidget):
         TARGET_COMPLETE_SCALE = 0.6
 
         # Convert to pixels
-        pixels_per_unity_unit = 60.0
-        target_size_pixels = TARGET_SIZE * self.SCALE_X * pixels_per_unity_unit
+        pixels_per_unity_unit = min(self.width(), self.height()) / 14.0
+        target_size_pixels = TARGET_SIZE * self.SCALE_X * pixels_per_unity_unit / self.SCALE_X # Simplified to TARGET_SIZE * pixels_per_unity_unit
 
         for target, pos in self.arm_weight_targets.items():
             if target == ArmWeightTarget.NONE:
@@ -544,8 +553,8 @@ class WorkspaceAssessmentCanvas(QWidget):
         TARGET_COMPLETE_SCALE = 0.6
 
         # Convert to pixels
-        pixels_per_unity_unit = 60.0
-        target_size_pixels = TARGET_SIZE * self.SCALE_X * pixels_per_unity_unit
+        pixels_per_unity_unit = min(self.width(), self.height()) / 14.0
+        target_size_pixels = TARGET_SIZE * pixels_per_unity_unit
 
         for target, pos in self.discrete_reach_targets.items():
             if target == DiscreteReachTarget.NONE or pos is None:
@@ -695,6 +704,9 @@ class BaseAssessmentWindow(QMainWindow):
         self.update_timer = QTimer(self)
         self.update_timer.timeout.connect(self.update_canvas)
         self.update_timer.start(33)  # ~30 FPS
+        
+        # Show maximized (restores Close/Minimize buttons)
+        self.showMaximized()
 
     @property
     def movement_type(self) -> str:
@@ -704,7 +716,6 @@ class BaseAssessmentWindow(QMainWindow):
     def init_ui(self):
         """Create window layout."""
         self.setWindowTitle(f"MARS Workspace Assessment - {self.movement_type}")
-        self.setFixedSize(850, 900)
 
         # Central widget
         central = QWidget()
@@ -712,7 +723,7 @@ class BaseAssessmentWindow(QMainWindow):
         layout = QVBoxLayout(central)
 
         # Canvas
-        layout.addWidget(self.canvas, alignment=Qt.AlignCenter)
+        layout.addWidget(self.canvas, 1)
 
         # Button panel
         button_layout = QHBoxLayout()
