@@ -22,19 +22,9 @@ class AromAssessState(Enum):
     """Assessment state machine states."""
     INIT = 0
     ASSESSROM = 1
-    ADJUST = 2
-    DONE = 3
-    TRIAL_PAUSE = 4
-    TRIAL_READY = 5
-
-
-class AromAdjustState(Enum):
-    """Boundary adjustment states."""
-    NONE = 0
-    LEFT = 1
-    RIGHT = 2
-    TOP = 3
-    BOTTOM = 4
+    DONE = 2
+    TRIAL_PAUSE = 3
+    TRIAL_READY = 4
 
 
 class WorkspaceAssessmentCanvas(QWidget):
@@ -59,7 +49,6 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # UI state
         self.state = AromAssessState.INIT
-        self.adjust_state = AromAdjustState.NONE
         self.instruction_text = "Press robot button to begin"
         self.show_grid = False
         self.countdown_timer = None # None or int/float
@@ -182,10 +171,7 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # Current AROM boundaries
         if self.current_arom is not None:
-            if self.state == AromAssessState.ADJUST:
-                # Red with handles during adjustment
-                self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 200), True)
-            elif self.state == AromAssessState.TRIAL_PAUSE:
+            if self.state == AromAssessState.TRIAL_PAUSE:
                 # Show both trial specifically and global max
                 # Trial boundary in blue-ish
                 self._draw_trial_boundaries(painter, self.current_arom, QColor(100, 150, 255, 150))
@@ -194,6 +180,9 @@ class WorkspaceAssessmentCanvas(QWidget):
             elif self.arm_weight_state is not None:
                 # Light gray reference for arm weight assessment
                 self._draw_arom_boundaries(painter, self.current_arom, QColor(150, 150, 150, 150), False)
+            elif self.state == AromAssessState.DONE:
+                # Show final boundaries
+                self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 200), False)
 
         # Arm weight targets (if active)
         if self.arm_weight_state is not None and len(self.arm_weight_targets) > 0:
@@ -215,8 +204,8 @@ class WorkspaceAssessmentCanvas(QWidget):
         # Instruction text (top-left)
         self._draw_instruction_text(painter)
 
-        # Range measurements (top-right) - only during AROM adjustment
-        if self.current_arom is not None and self.state == AromAssessState.ADJUST and self.arm_weight_state is None:
+        # Range measurements (top-right)
+        if self.current_arom is not None and self.arm_weight_state is None:
             self._draw_range_text(painter)
 
     def _draw_grid(self, painter):
@@ -657,7 +646,6 @@ class BaseAssessmentWindow(QMainWindow):
         self.is_demo = is_demo
         self.session_subdir = session_subdir
         self.state = AromAssessState.INIT
-        self.adjust_state = AromAdjustState.NONE
 
         # Trial Management
         self.current_trial = 1
@@ -857,30 +845,22 @@ class BaseAssessmentWindow(QMainWindow):
         print(f"Resumed {self.movement_type} assessment - Trial {self.current_trial}")
 
     def stop_assessment(self):
-        """Stop assessment fully - transition ASSESSROM -> ADJUST."""
+        """Stop assessment fully - transition ASSESSROM -> DONE."""
         if self.state != AromAssessState.ASSESSROM:
             return
 
         # Stop recording completely
         self.current_arom.stop_assessment()
 
-        # TEST: Swap left and right for LEFT limb to test behavior
-        if self.canvas.limb_type == "LEFT" and self.movement_type == "MLAP":
-            temp_left = self.current_arom.adjusted_left
-            self.current_arom.adjusted_left = self.current_arom.adjusted_right
-            self.current_arom.adjusted_right = temp_left
-            print(f"[TEST] Swapped left/right corners for LEFT limb")
-
         # Update state
-        self.state = AromAssessState.ADJUST
+        self.state = AromAssessState.DONE
         self.canvas.state = self.state
-        self.canvas.instruction_text = "Adjust boundaries with L/R/T/B keys + mouse. Click 'Save & Close' when done."
+        self.canvas.instruction_text = "Assessment complete. Click 'Save & Close' to finish."
 
         # Update buttons
-        self.recalibrate_btn.setVisible(True)
         self.save_btn.setVisible(True)
 
-        print(f"Stopped {self.movement_type} assessment - computed physical corners")
+        print(f"Stopped {self.movement_type} assessment - final results displayed")
 
     def handle_new_data(self):
         """Handle new data from MARS device."""
@@ -990,69 +970,6 @@ class BaseAssessmentWindow(QMainWindow):
 
         # Close window
         self.close()
-
-    def keyPressEvent(self, event):
-        """Handle keyboard input for boundary adjustment."""
-        if self.state != AromAssessState.ADJUST:
-            return
-
-        key = event.key()
-
-        if key == Qt.Key_L:
-            self.adjust_state = AromAdjustState.LEFT
-            self.canvas.adjust_state = self.adjust_state
-            self.canvas.instruction_text = "Adjusting LEFT boundary - drag with mouse"
-        elif key == Qt.Key_R:
-            self.adjust_state = AromAdjustState.RIGHT
-            self.canvas.adjust_state = self.adjust_state
-            self.canvas.instruction_text = "Adjusting RIGHT boundary - drag with mouse"
-        elif key == Qt.Key_T:
-            self.adjust_state = AromAdjustState.TOP
-            self.canvas.adjust_state = self.adjust_state
-            self.canvas.instruction_text = "Adjusting TOP boundary - drag with mouse"
-        elif key == Qt.Key_B:
-            self.adjust_state = AromAdjustState.BOTTOM
-            self.canvas.adjust_state = self.adjust_state
-            self.canvas.instruction_text = "Adjusting BOTTOM boundary - drag with mouse"
-        elif key == Qt.Key_Escape:
-            self.adjust_state = AromAdjustState.NONE
-            self.canvas.adjust_state = self.adjust_state
-            self.canvas.instruction_text = "Adjust boundaries with L/R/T/B keys + mouse. Click 'Save & Close' when done."
-
-    def mousePressEvent(self, event):
-        """Handle mouse press for boundary adjustment."""
-        if self.state != AromAssessState.ADJUST or self.adjust_state == AromAdjustState.NONE:
-            return
-
-        # Get mouse position relative to canvas
-        canvas_pos = self.canvas.mapFromGlobal(event.globalPos())
-        robot_coords = self.canvas.screen_to_robot(canvas_pos.x(), canvas_pos.y())
-
-        # Update appropriate boundary
-        self._update_boundary(robot_coords)
-
-    def mouseMoveEvent(self, event):
-        """Handle mouse move for boundary adjustment."""
-        if self.state != AromAssessState.ADJUST or self.adjust_state == AromAdjustState.NONE:
-            return
-
-        if event.buttons() & Qt.LeftButton:
-            canvas_pos = self.canvas.mapFromGlobal(event.globalPos())
-            robot_coords = self.canvas.screen_to_robot(canvas_pos.x(), canvas_pos.y())
-            self._update_boundary(robot_coords)
-
-    def _update_boundary(self, robot_coords):
-        """Update boundary based on adjust state."""
-        y, z = robot_coords
-
-        if self.adjust_state == AromAdjustState.TOP:
-            self.current_arom.adjusted_top = (y, self.current_arom.adjusted_top[1])
-        elif self.adjust_state == AromAdjustState.BOTTOM:
-            self.current_arom.adjusted_bottom = (y, self.current_arom.adjusted_bottom[1])
-        elif self.adjust_state == AromAdjustState.LEFT:
-            self.current_arom.adjusted_left = (self.current_arom.adjusted_left[0], z)
-        elif self.adjust_state == AromAdjustState.RIGHT:
-            self.current_arom.adjusted_right = (self.current_arom.adjusted_right[0], z)
 
     def closeEvent(self, event):
         """Clean disconnect from signals when closing."""
