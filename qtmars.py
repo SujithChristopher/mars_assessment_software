@@ -51,8 +51,12 @@ class QtMars(QObject):
     controlmodechanged = Signal()
     armweightinoutofrange = Signal()
 
-    def __init__(self, port: str | None = None, baudrate: int = 115200, limb: str = "Right", auto_heartbeat: bool = True, log_heartbeat: bool = False) -> None:
+    def __init__(self, port: str | None = None, baudrate: int = 115200, limb: str = "Right", 
+                 auto_heartbeat: bool = True, log_heartbeat: bool = False,
+                 patient_id: str = None, time_point: str = "A0") -> None:
         super().__init__()
+        self.patient_id = patient_id
+        self.time_point = time_point
         self.dev = JediComm(port, baudrate)
         # Upacked data from MARS with time stamp.
         self.currstatedata = []
@@ -128,7 +132,11 @@ class QtMars(QObject):
             logger.addHandler(console_handler)
 
             # Setup file handler for continuous CSV logging
-            log_dir = Path("data/logs")
+            if self.patient_id:
+                log_dir = Path("data") / self.patient_id / "logs"
+            else:
+                log_dir = Path("data/logs")
+                
             log_dir.mkdir(parents=True, exist_ok=True)
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             log_file = log_dir / f"mars_log_{timestamp}.csv"

@@ -460,7 +460,8 @@ class MarsAssessmentLauncher(QMainWindow):
             return
 
         try:
-            self.mars = QtMars(port=port, baudrate=115200, auto_heartbeat=False)
+            self.mars = QtMars(port=port, baudrate=115200, auto_heartbeat=False,
+                               patient_id=self.patient_id, time_point=self.time_point)
 
             if not self.mars.is_connected():
                 QMessageBox.critical(self, "Connection Error",
