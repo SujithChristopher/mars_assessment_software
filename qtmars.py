@@ -135,7 +135,7 @@ class QtMars(QObject):
             # CSV Formatter
             csv_formatter = logging.Formatter(
                 '%(asctime)s,%(levelname)s,"%(message)s"',
-                datefmt='%Y-%m-%d %H:%M:%S.%f'
+                datefmt='%Y-%m-%d %H:%M:%S'
             )
             
             file_handler = logging.FileHandler(log_file)
