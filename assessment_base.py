@@ -183,7 +183,9 @@ class WorkspaceAssessmentCanvas(QWidget):
             if self.state == AromAssessState.ADJUST:
                 # Red with handles during adjustment
                 self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 200), True)
-            # Reference drawing during Arm Weight/Discrete Reach removed per request
+            elif self.arm_weight_state is not None:
+                # Light gray reference for arm weight assessment
+                self._draw_arom_boundaries(painter, self.current_arom, QColor(150, 150, 150, 150), False)
 
         # Arm weight targets (if active)
         if self.arm_weight_state is not None and len(self.arm_weight_targets) > 0:
