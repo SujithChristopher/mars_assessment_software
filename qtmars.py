@@ -9,11 +9,12 @@ Email: siva82kb@gmail.com
 
 from PySide6.QtCore import QObject, Signal, QTimer
 from qtjedi import JediComm
-from datetime import datetime
 import sys
 import struct
 import math
 import logging
+import os
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, Tuple
 import random
@@ -113,13 +114,38 @@ class QtMars(QObject):
         logger = logging.getLogger('QtMars')
         if not logger.handlers:
             logger.setLevel(logging.INFO)
-            handler = logging.StreamHandler()
-            formatter = logging.Formatter(
+            
+            # Formatter for console (easier to read)
+            console_formatter = logging.Formatter(
                 '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
-            handler.setFormatter(formatter)
-            logger.addHandler(handler)
+            
+            # Setup console handler
+            console_handler = logging.StreamHandler()
+            console_handler.setFormatter(console_formatter)
+            logger.addHandler(console_handler)
+
+            # Setup file handler for continuous CSV logging
+            log_dir = Path("data/logs")
+            log_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            log_file = log_dir / f"mars_log_{timestamp}.csv"
+            
+            # CSV Formatter
+            csv_formatter = logging.Formatter(
+                '%(asctime)s,%(levelname)s,"%(message)s"',
+                datefmt='%Y-%m-%d %H:%M:%S.%f'
+            )
+            
+            file_handler = logging.FileHandler(log_file)
+            file_handler.setFormatter(csv_formatter)
+            logger.addHandler(file_handler)
+            
+            # Write CSV header manually
+            with open(log_file, 'a') as f:
+                f.write("Timestamp,Level,Message\n")
+                
         return logger
 
     @property
