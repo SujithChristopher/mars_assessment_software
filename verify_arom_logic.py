@@ -17,6 +17,7 @@ def test_mars_arom_logic():
     
     print(f"Trial 1 Max AP: {arom.ap_range_cm:.2f} cm")
     print(f"Trial 1 Avg AP: {arom.ap_average_cm:.2f} cm")
+    print(f"Trial 1 Avg Top Y: {arom.average_top[0]:.2f} m")
     
     # Trial 2: Smaller move (0,0) to (0.5, 0.5)
     arom.resume_assessment()
@@ -31,6 +32,7 @@ def test_mars_arom_logic():
     print(f"After Trial 2 (smaller):")
     print(f"Max AP: {arom.ap_range_cm:.2f} cm (Should be ~100)")
     print(f"Avg AP: {arom.ap_average_cm:.2f} cm (Should be ~75)")
+    print(f"Avg Top Y: {arom.average_top[0]:.2f} m (Should be ~0.75)")
     
     # Trial 3: Larger move (0,0) to (2.0, 2.0)
     arom.resume_assessment()

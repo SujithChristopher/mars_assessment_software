@@ -172,17 +172,20 @@ class WorkspaceAssessmentCanvas(QWidget):
         # Current AROM boundaries
         if self.current_arom is not None:
             if self.state == AromAssessState.TRIAL_PAUSE:
-                # Show both trial specifically and global max
-                # Trial boundary in blue-ish
-                self._draw_trial_boundaries(painter, self.current_arom, QColor(100, 150, 255, 150))
-                # Global max in red
+                # Show trial, average (blue), and global max (red)
+                # Trial boundary in light blue
+                self._draw_trial_boundaries(painter, self.current_arom, QColor(100, 150, 255, 100))
+                # Average boundary in solid blue
+                self._draw_average_boundaries(painter, self.current_arom, QColor(0, 0, 255, 150))
+                # Global max in light red
                 self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 100))
             elif self.arm_weight_state is not None:
                 # Light gray reference for arm weight assessment
                 self._draw_arom_boundaries(painter, self.current_arom, QColor(150, 150, 150, 150), False)
             elif self.state == AromAssessState.DONE:
-                # Show final boundaries
-                self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 200), False)
+                # Show average (blue) and final global max (red)
+                self._draw_average_boundaries(painter, self.current_arom, QColor(0, 0, 255, 150))
+                self._draw_arom_boundaries(painter, self.current_arom, QColor(255, 50, 50, 180), False)
 
         # Arm weight targets (if active)
         if self.arm_weight_state is not None and len(self.arm_weight_targets) > 0:
@@ -366,6 +369,24 @@ class WorkspaceAssessmentCanvas(QWidget):
         
         arom.adjusted_top, arom.adjusted_bottom = arom.trial_top, arom.trial_bottom
         arom.adjusted_left, arom.adjusted_right = arom.trial_left, arom.trial_right
+        
+        self._draw_arom_boundaries(painter, arom, color, False)
+        
+        # Restore
+        arom.adjusted_top, arom.adjusted_bottom = orig_top, orig_bottom
+        arom.adjusted_left, arom.adjusted_right = orig_left, orig_right
+
+    def _draw_average_boundaries(self, painter, arom: MarsArom, color: QColor):
+        """Draw average boundaries (mean corners across trials)."""
+        if arom.average_top is None or arom.average_bottom is None:
+            return
+        
+        # Save global adjusted for a moment to reuse draw methods
+        orig_top, orig_bottom = arom.adjusted_top, arom.adjusted_bottom
+        orig_left, orig_right = arom.adjusted_left, arom.adjusted_right
+        
+        arom.adjusted_top, arom.adjusted_bottom = arom.average_top, arom.average_bottom
+        arom.adjusted_left, arom.adjusted_right = arom.average_left, arom.average_right
         
         self._draw_arom_boundaries(painter, arom, color, False)
         

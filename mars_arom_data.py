@@ -59,6 +59,7 @@ class MarsArom:
         self.trial_left = None
         self.trial_right = None
         self.trial_ranges = []  # List of (ml_range_cm, ap_range_cm) tuples
+        self.trial_corners_history = [] # List of (top, bottom, left, right) tuples
 
         self.raw_trajectory = [] # Stores all points across trials
         self.trial_trajectory = [] # Only the points for the current trial
@@ -82,6 +83,9 @@ class MarsArom:
             
             # Update global boundaries (expansion-only)
             self._update_global_boundaries(trial_corners)
+            
+            # Store trial corners in history
+            self.trial_corners_history.append(trial_corners)
             
             # Store trial ranges for averaging
             ml = abs(self.trial_right[1] - self.trial_left[1]) * 100.0
@@ -121,6 +125,9 @@ class MarsArom:
             
             # Update global boundaries (expansion-only)
             self._update_global_boundaries(trial_corners)
+            
+            # Store trial corners in history
+            self.trial_corners_history.append(trial_corners)
             
             # Store trial ranges for averaging
             ml = abs(self.trial_right[1] - self.trial_left[1]) * 100.0
@@ -220,6 +227,30 @@ class MarsArom:
         if not self.trial_ranges:
             return 0.0
         return sum(r[1] for r in self.trial_ranges) / len(self.trial_ranges)
+
+    @property
+    def average_top(self):
+        if not self.trial_corners_history: return None
+        return (sum(c[0][0] for c in self.trial_corners_history) / len(self.trial_corners_history),
+                sum(c[0][1] for c in self.trial_corners_history) / len(self.trial_corners_history))
+
+    @property
+    def average_bottom(self):
+        if not self.trial_corners_history: return None
+        return (sum(c[1][0] for c in self.trial_corners_history) / len(self.trial_corners_history),
+                sum(c[1][1] for c in self.trial_corners_history) / len(self.trial_corners_history))
+
+    @property
+    def average_left(self):
+        if not self.trial_corners_history: return None
+        return (sum(c[2][0] for c in self.trial_corners_history) / len(self.trial_corners_history),
+                sum(c[2][1] for c in self.trial_corners_history) / len(self.trial_corners_history))
+
+    @property
+    def average_right(self):
+        if not self.trial_corners_history: return None
+        return (sum(c[3][0] for c in self.trial_corners_history) / len(self.trial_corners_history),
+                sum(c[3][1] for c in self.trial_corners_history) / len(self.trial_corners_history))
 
     def save_to_csv(self, base_dir: str = "data", session_subdir: str = None) -> str:
         """Save AROM data to CSV file in session folder.
