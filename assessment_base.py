@@ -24,6 +24,8 @@ class AromAssessState(Enum):
     ASSESSROM = 1
     ADJUST = 2
     DONE = 3
+    TRIAL_PAUSE = 4
+    TRIAL_READY = 5
 
 
 class AromAdjustState(Enum):
@@ -376,7 +378,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         painter.drawText(10, 30, self.instruction_text)
 
     def _draw_range_text(self, painter):
-        """Draw range measurements."""
+        """Draw range measurements based on assessment type."""
         if self.current_arom is None:
             return
 
@@ -386,7 +388,13 @@ class WorkspaceAssessmentCanvas(QWidget):
         ml_range = self.current_arom.ml_range_cm
         ap_range = self.current_arom.ap_range_cm
 
-        text = f"ML: {ml_range:.2f} cm, AP: {ap_range:.2f} cm"
+        if self.movement_type == "AP":
+            text = f"AP: {ap_range:.2f} cm"
+        elif self.movement_type == "ML":
+            text = f"ML: {ml_range:.2f} cm"
+        else: # MLAP
+            text = f"ML: {ml_range:.2f} cm, AP: {ap_range:.2f} cm"
+            
         painter.drawText(550, 30, text)
 
     def _draw_arm_weight_targets(self, painter):
@@ -609,6 +617,10 @@ class BaseAssessmentWindow(QMainWindow):
         self.state = AromAssessState.INIT
         self.adjust_state = AromAdjustState.NONE
 
+        # Trial Management
+        self.current_trial = 1
+        self.max_trials = 3
+
         # Data
         self.current_arom = None
         self.previous_arom = None
@@ -728,6 +740,9 @@ class BaseAssessmentWindow(QMainWindow):
         if self.state != AromAssessState.INIT:
             return
 
+        # Initialize trial properties
+        self.current_trial = 1
+
         # Create new AROM instance
         self.current_arom = MarsArom(self.movement_type, self.patient_id, self.time_point, self.is_demo)
         self.current_arom.start_assessment()
@@ -741,19 +756,70 @@ class BaseAssessmentWindow(QMainWindow):
         # Update state
         self.state = AromAssessState.ASSESSROM
         self.canvas.state = self.state
-        self.canvas.instruction_text = "Move through your range. Press device button when done."
+        self.canvas.instruction_text = f"Trial {self.current_trial} of {self.max_trials}: Move through your range. Press device button when done."
 
         # Update buttons
         self.start_btn.setVisible(False)
 
-        print(f"Started {self.movement_type} assessment")
+        print(f"Started {self.movement_type} assessment - Trial {self.current_trial}")
 
-    def stop_assessment(self):
-        """Stop assessment - transition ASSESSROM -> ADJUST."""
+    def pause_trial_assessment(self):
+        """Pause assessment between trials - transition ASSESSROM -> TRIAL_PAUSE."""
         if self.state != AromAssessState.ASSESSROM:
             return
 
-        # Stop recording
+        # Pause recording and compute corners for the *current* trial's data
+        self.current_arom.pause_assessment()
+        
+        # Update state to TRIAL_PAUSE so user can see their bounds
+        self.state = AromAssessState.TRIAL_PAUSE
+        self.canvas.state = self.state
+        self.canvas.instruction_text = f"Trial {self.current_trial} complete. Press button to start Trial {self.current_trial + 1}."
+
+        print(f"Paused {self.movement_type} assessment after Trial {self.current_trial}")
+
+    def ready_next_trial(self):
+        """Prepare for next trial - transition TRIAL_PAUSE -> TRIAL_READY."""
+        if self.state != AromAssessState.TRIAL_PAUSE:
+            return
+
+        self.current_trial += 1
+        
+        # Clear the old trajectory visually and internally before they start moving
+        self.trajectory_points = []
+        self.canvas.trajectory = []
+        self.last_recorded_pos = None
+
+        # Update state to TRIAL_READY
+        self.state = AromAssessState.TRIAL_READY
+        self.canvas.state = self.state
+        self.canvas.instruction_text = f"Ready for Trial {self.current_trial}. Press device button to start."
+        
+        # Reclaim previous AROM context
+        self.canvas.current_arom = self.current_arom
+        print(f"Ready for {self.movement_type} assessment - Trial {self.current_trial}")
+
+    def resume_trial_assessment(self):
+        """Resume assessment for next trial - transition TRIAL_READY -> ASSESSROM."""
+        if self.state != AromAssessState.TRIAL_READY:
+            return
+
+        # Resume recording (which will start a fresh trajectory in MarsArom)
+        self.current_arom.resume_assessment()
+
+        # Update state back to ASSESSROM
+        self.state = AromAssessState.ASSESSROM
+        self.canvas.state = self.state
+        self.canvas.instruction_text = f"Trial {self.current_trial} of {self.max_trials}: Move through your range. Press device button when done."
+
+        print(f"Resumed {self.movement_type} assessment - Trial {self.current_trial}")
+
+    def stop_assessment(self):
+        """Stop assessment fully - transition ASSESSROM -> ADJUST."""
+        if self.state != AromAssessState.ASSESSROM:
+            return
+
+        # Stop recording completely
         self.current_arom.stop_assessment()
 
         # TEST: Swap left and right for LEFT limb to test behavior
@@ -772,7 +838,7 @@ class BaseAssessmentWindow(QMainWindow):
         self.recalibrate_btn.setVisible(True)
         self.save_btn.setVisible(True)
 
-        print(f"Stopped {self.movement_type} assessment - computed corners")
+        print(f"Stopped {self.movement_type} assessment - computed physical corners")
 
     def handle_new_data(self):
         """Handle new data from MARS device."""
@@ -813,21 +879,33 @@ class BaseAssessmentWindow(QMainWindow):
     def handle_button_release(self):
         """Handle device button release - triggers state transitions.
 
-        Based on Unity MarsAssessAROM.cs OnMarsButtonReleased():
-        - INIT state: Start assessment (INIT → ASSESSROM)
-        - ASSESSROM state: Stop assessment (ASSESSROM → ADJUST)
+        - INIT state: Start assessment Trial 1 (INIT → ASSESSROM)
+        - ASSESSROM state (< 3 trials): Pause and calculate intermediate range (ASSESSROM → TRIAL_PAUSE)
+        - ASSESSROM state (== 3 trials): Stop and adjust boundaries (ASSESSROM → ADJUST)
+        - TRIAL_PAUSE state: Ready next trial by clearing bounds (TRIAL_PAUSE → TRIAL_READY)
+        - TRIAL_READY state: Start next trial (TRIAL_READY → ASSESSROM)
         """
         print(f"[Button] Device button released in state: {self.state}")
 
         if self.state == AromAssessState.INIT:
-            # Start assessment automatically (like Unity allows)
             print("[Button] Starting assessment from button press")
             self.on_start_assessment()
 
         elif self.state == AromAssessState.ASSESSROM:
-            # Stop assessment and move to adjust mode
-            print("[Button] Stopping assessment from button press")
-            self.stop_assessment()
+            if self.current_trial < self.max_trials:
+                print(f"[Button] Pausing trial {self.current_trial}")
+                self.pause_trial_assessment()
+            else:
+                print(f"[Button] Stopping assessment at trial {self.current_trial}")
+                self.stop_assessment()
+
+        elif self.state == AromAssessState.TRIAL_PAUSE:
+            print(f"[Button] Readying trial {self.current_trial + 1}")
+            self.ready_next_trial()
+            
+        elif self.state == AromAssessState.TRIAL_READY:
+            print(f"[Button] Starting trial {self.current_trial}")
+            self.resume_trial_assessment()
 
         else:
             print(f"[Button] No action for state: {self.state}")

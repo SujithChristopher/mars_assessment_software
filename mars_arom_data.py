@@ -53,12 +53,32 @@ class MarsArom:
         self.adjusted_left = None
         self.adjusted_right = None
 
+        self.raw_trajectory = [] # Stores all points across trials
+        self.trial_trajectory = [] # Only the points for the current trial
         self._is_recording = False
 
     def start_assessment(self):
-        """Begin data collection for assessment."""
+        """Begin data collection for assessment (Trial 1)."""
         self.timestamp = datetime.now()
         self.raw_trajectory = []
+        self.trial_trajectory = []
+        self._is_recording = True
+
+    def pause_assessment(self):
+        """Pause data recording between trials and compute *cumulative* corners."""
+        self._is_recording = False
+        
+        # Save the trial trajectory to the main trajectory list
+        if self.trial_trajectory:
+            self.raw_trajectory.extend(self.trial_trajectory)
+            self.trial_trajectory = []
+
+        # Compute corners using ALL points collected so far
+        self._compute_corners()
+
+    def resume_assessment(self):
+        """Resume recording for the next trial, starting with a fresh visual trajectory."""
+        self.trial_trajectory = []
         self._is_recording = True
 
     def add_data_point(self, y: float, z: float):
@@ -70,11 +90,18 @@ class MarsArom:
         """
         if not self._is_recording:
             return
-        self.raw_trajectory.append([y, z])
+            
+        self.trial_trajectory.append([y, z])
 
     def stop_assessment(self):
-        """Stop data collection and compute corner points using 5% extremes."""
+        """Stop data collection entirely and compute final corner points."""
         self._is_recording = False
+        
+        # Combine final trial points
+        if self.trial_trajectory:
+            self.raw_trajectory.extend(self.trial_trajectory)
+            self.trial_trajectory = []
+            
         self._compute_corners()
 
     def _compute_corners(self):
