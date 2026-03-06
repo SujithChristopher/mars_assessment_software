@@ -39,7 +39,7 @@ class MarsArom:
         self.timestamp = None
         self.plane_angle = 90.0  # Default training plane angle
 
-        # Raw trajectory data: list of [y, z] points in meters
+        # Raw trajectory data: list of [y, z, trial_num] points in meters
         self.raw_trajectory = []
 
         # Corner points: (y, z) tuples in meters
@@ -61,15 +61,16 @@ class MarsArom:
         self.trial_ranges = []  # List of (ml_range_cm, ap_range_cm) tuples
         self.trial_corners_history = [] # List of (top, bottom, left, right) tuples
 
-        self.raw_trajectory = [] # Stores all points across trials
-        self.trial_trajectory = [] # Only the points for the current trial
+        self.trial_trajectory = [] # Only the points for the current trial as [y, z]
         self._is_recording = False
+        self.current_trial_num = 1
 
     def start_assessment(self):
         """Begin data collection for assessment (Trial 1)."""
         self.timestamp = datetime.now()
         self.raw_trajectory = []
         self.trial_trajectory = []
+        self.current_trial_num = 1
         self._is_recording = True
 
     def pause_assessment(self):
@@ -92,10 +93,12 @@ class MarsArom:
             ap = abs(self.trial_top[0] - self.trial_bottom[0]) * 100.0
             self.trial_ranges.append((ml, ap))
 
-        # Save the trial trajectory to the main trajectory list
+        # Save the trial trajectory to the main trajectory list with trial number
         if self.trial_trajectory:
-            self.raw_trajectory.extend(self.trial_trajectory)
+            for pt in self.trial_trajectory:
+                self.raw_trajectory.append([pt[0], pt[1], self.current_trial_num])
             self.trial_trajectory = []
+            self.current_trial_num += 1
 
     def resume_assessment(self):
         """Resume recording for the next trial, starting with a fresh visual trajectory."""
@@ -136,7 +139,8 @@ class MarsArom:
 
         # Combine final trial points
         if self.trial_trajectory:
-            self.raw_trajectory.extend(self.trial_trajectory)
+            for pt in self.trial_trajectory:
+                self.raw_trajectory.append([pt[0], pt[1], self.current_trial_num])
             self.trial_trajectory = []
 
     def _compute_corners_for_points(self, points):
@@ -291,68 +295,75 @@ class MarsArom:
                 else:
                     break
 
-        # Create filename: {movement}-{date}-{time}.csv
+        # Create filenames
         time_str = self.timestamp.strftime("%H-%M-%S")
         filename = f"{self.movement_type.lower()}-{date_str}-{time_str}.csv"
+        raw_filename = f"raw-{self.movement_type.lower()}-{date_str}-{time_str}.csv"
+        
         filepath = session_folder / filename
+        raw_filepath = session_folder / raw_filename
 
-        # Write CSV
+        # Write Summary CSV (One row per trial + Average + Final Max)
         with open(filepath, 'w', newline='') as f:
             writer = csv.writer(f)
 
             # Header
             writer.writerow([
                 'datetime', 'plane_angle', 'movement_type',
-                'patient_id', 'time_point',
-                'raw_top_y', 'raw_top_z',
-                'raw_bottom_y', 'raw_bottom_z',
-                'raw_left_y', 'raw_left_z',
-                'raw_right_y', 'raw_right_z',
-                'adjusted_top_y', 'adjusted_top_z',
-                'adjusted_bottom_y', 'adjusted_bottom_z',
-                'adjusted_left_y', 'adjusted_left_z',
-                'adjusted_right_y', 'adjusted_right_z',
+                'patient_id', 'time_point', 'trial_number',
                 'ml_range_cm', 'ap_range_cm',
-                'ml_average_cm', 'ap_average_cm',
-                'trial_ranges'
+                'top_y', 'top_z', 'bottom_y', 'bottom_z',
+                'left_y', 'left_z', 'right_y', 'right_z'
             ])
 
-            # Data row
-            writer.writerow([
+            common_info = [
                 self.timestamp.isoformat(),
                 self.plane_angle,
                 self.movement_type,
                 self.patient_id if self.patient_id else '',
-                self.time_point if self.time_point else '',
-                self.raw_top[0] if self.raw_top else '',
-                self.raw_top[1] if self.raw_top else '',
-                self.raw_bottom[0] if self.raw_bottom else '',
-                self.raw_bottom[1] if self.raw_bottom else '',
-                self.raw_left[0] if self.raw_left else '',
-                self.raw_left[1] if self.raw_left else '',
-                self.raw_right[0] if self.raw_right else '',
-                self.raw_right[1] if self.raw_right else '',
-                self.adjusted_top[0] if self.adjusted_top else '',
-                self.adjusted_top[1] if self.adjusted_top else '',
-                self.adjusted_bottom[0] if self.adjusted_bottom else '',
-                self.adjusted_bottom[1] if self.adjusted_bottom else '',
-                self.adjusted_left[0] if self.adjusted_left else '',
-                self.adjusted_left[1] if self.adjusted_left else '',
-                self.adjusted_right[0] if self.adjusted_right else '',
-                self.adjusted_right[1] if self.adjusted_right else '',
-                f"{self.ml_range_cm:.2f}",
-                f"{self.ap_range_cm:.2f}",
-                f"{self.ml_average_cm:.2f}",
-                f"{self.ap_average_cm:.2f}",
-                ";".join([f"{ml:.2f},{ap:.2f}" for ml, ap in self.trial_ranges])
-            ])
+                self.time_point if self.time_point else ''
+            ]
 
-            # Trajectory data section
-            writer.writerow([])
-            writer.writerow(['Trajectory Data'])
-            writer.writerow(['y (m)', 'z (m)'])
+            # 1. Individual Trials
+            for i, (ml, ap) in enumerate(self.trial_ranges):
+                trial_idx = i + 1
+                corners = self.trial_corners_history[i] if i < len(self.trial_corners_history) else (None, None, None, None)
+                row = common_info + [
+                    f"Trial {trial_idx}", f"{ml:.2f}", f"{ap:.2f}",
+                    corners[0][0] if corners[0] else '', corners[0][1] if corners[0] else '',
+                    corners[1][0] if corners[1] else '', corners[1][1] if corners[1] else '',
+                    corners[2][0] if corners[2] else '', corners[2][1] if corners[2] else '',
+                    corners[3][0] if corners[3] else '', corners[3][1] if corners[3] else ''
+                ]
+                writer.writerow(row)
+
+            # 2. Average row
+            avg_row = common_info + [
+                "AVERAGE", f"{self.ml_average_cm:.2f}", f"{self.ap_average_cm:.2f}",
+                self.average_top[0] if self.average_top else '', self.average_top[1] if self.average_top else '',
+                self.average_bottom[0] if self.average_bottom else '', self.average_bottom[1] if self.average_bottom else '',
+                self.average_left[0] if self.average_left else '', self.average_left[1] if self.average_left else '',
+                self.average_right[0] if self.average_right else '', self.average_right[1] if self.average_right else ''
+            ]
+            writer.writerow(avg_row)
+
+            # 3. Maximum (Cumulative) row
+            max_row = common_info + [
+                "MAXIMUM", f"{self.ml_range_cm:.2f}", f"{self.ap_range_cm:.2f}",
+                self.adjusted_top[0] if self.adjusted_top else '', self.adjusted_top[1] if self.adjusted_top else '',
+                self.adjusted_bottom[0] if self.adjusted_bottom else '', self.adjusted_bottom[1] if self.adjusted_bottom else '',
+                self.adjusted_left[0] if self.adjusted_left else '', self.adjusted_left[1] if self.adjusted_left else '',
+                self.adjusted_right[0] if self.adjusted_right else '', self.adjusted_right[1] if self.adjusted_right else ''
+            ]
+            writer.writerow(max_row)
+
+        # Write Raw Trajectory CSV
+        with open(raw_filepath, 'w', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow(['trial_number', 'y (m)', 'z (m)'])
             for point in self.raw_trajectory:
-                writer.writerow([f"{point[0]:.6f}", f"{point[1]:.6f}"])
+                # Store as [y, z, trial_num]
+                writer.writerow([point[2], f"{point[0]:.6f}", f"{point[1]:.6f}"])
 
         return str(filepath)
 
@@ -372,7 +383,7 @@ class MarsArom:
             # Read header
             header = next(reader)
 
-            # Read data row
+            # Read first data row (usually Trial 1)
             data_row = next(reader)
             data_dict = dict(zip(header, data_row))
 
@@ -393,46 +404,49 @@ class MarsArom:
             arom.timestamp = datetime.fromisoformat(data_dict['datetime'])
             arom.plane_angle = float(data_dict['plane_angle'])
 
-            # Load corners
-            if data_dict.get('raw_top_y'):
-                arom.raw_top = (float(data_dict['raw_top_y']), float(data_dict['raw_top_z']))
-            if data_dict.get('raw_bottom_y'):
-                arom.raw_bottom = (float(data_dict['raw_bottom_y']), float(data_dict['raw_bottom_z']))
-            if data_dict.get('raw_left_y'):
-                arom.raw_left = (float(data_dict['raw_left_y']), float(data_dict['raw_left_z']))
-            if data_dict.get('raw_right_y'):
-                arom.raw_right = (float(data_dict['raw_right_y']), float(data_dict['raw_right_z']))
+            # Load corners and summary metrics (if available in new format)
+            # For new multi-row format, we might need to read all rows to reconstruct MarsArom
+            # But usually we only need the Global MAX for current logic
+            
+            # Basic loading of corners from first row (might be Trial 1)
+            if data_dict.get('top_y'):
+                 arom.adjusted_top = (float(data_dict['top_y']), float(data_dict['top_z']))
+            if data_dict.get('bottom_y'):
+                 arom.adjusted_bottom = (float(data_dict['bottom_y']), float(data_dict['bottom_z']))
+            if data_dict.get('left_y'):
+                 arom.adjusted_left = (float(data_dict['left_y']), float(data_dict['left_z']))
+            if data_dict.get('right_y'):
+                 arom.adjusted_right = (float(data_dict['right_y']), float(data_dict['right_z']))
 
-            if data_dict.get('adjusted_top_y'):
-                arom.adjusted_top = (float(data_dict['adjusted_top_y']), float(data_dict['adjusted_top_z']))
-            if data_dict.get('adjusted_bottom_y'):
-                arom.adjusted_bottom = (float(data_dict['adjusted_bottom_y']), float(data_dict['adjusted_bottom_z']))
-            if data_dict.get('adjusted_left_y'):
-                arom.adjusted_left = (float(data_dict['adjusted_left_y']), float(data_dict['adjusted_left_z']))
-            if data_dict.get('adjusted_right_y'):
-                arom.adjusted_right = (float(data_dict['adjusted_right_y']), float(data_dict['adjusted_right_z']))
-
-            # Load trial ranges
-            if data_dict.get('trial_ranges'):
-                try:
-                    range_str = data_dict['trial_ranges']
-                    for r_pair in range_str.split(';'):
-                        if r_pair:
-                            ml, ap = r_pair.split(',')
-                            arom.trial_ranges.append((float(ml), float(ap)))
-                except Exception as e:
-                    print(f"Error loading trial ranges: {e}")
-
-            # Skip empty row and trajectory header
-            next(reader)  # Empty row
-            next(reader)  # "Trajectory Data"
-            next(reader)  # Column headers
-
-            # Load trajectory points
-            arom.raw_trajectory = []
-            for row in reader:
-                if len(row) >= 2 and row[0] and row[1]:
-                    arom.raw_trajectory.append([float(row[0]), float(row[1])])
+            # Try to load raw trajectory from separate file if it exists
+            try:
+                filename = Path(filepath).name
+                raw_filename = f"raw-{filename}"
+                raw_filepath = Path(filepath).parent / raw_filename
+                
+                if raw_filepath.exists():
+                    with open(raw_filepath, 'r') as rf:
+                        raw_reader = csv.reader(rf)
+                        next(raw_reader) # Skip header
+                        arom.raw_trajectory = []
+                        for row in raw_reader:
+                            if len(row) >= 3:
+                                arom.raw_trajectory.append([float(row[1]), float(row[2]), int(row[0])])
+                else:
+                    # Backward compatibility
+                    rows = [data_row] + list(reader)
+                    if rows:
+                        start_idx = -1
+                        for i, r in enumerate(rows):
+                            if r and "Trajectory Data" in r[0]:
+                                start_idx = i + 2
+                                break
+                        if start_idx != -1 and start_idx < len(rows):
+                            for r in rows[start_idx:]:
+                                if len(r) >= 2 and r[0] and r[1]:
+                                    arom.raw_trajectory.append([float(r[0]), float(r[1]), 1])
+            except Exception as e:
+                print(f"Error loading trajectory: {e}")
 
         return arom
 
@@ -461,6 +475,9 @@ class MarsArom:
             pattern = f"**/{movement_type.lower()}-*.csv"
             
         matching_files = list(base_path.glob(pattern))
+
+        # Filter out "raw-" files
+        matching_files = [p for p in matching_files if not p.name.startswith("raw-")]
 
         if not matching_files:
             return None
