@@ -518,13 +518,16 @@ class WorkspaceAssessmentCanvas(QWidget):
         from arm_weight_data import ArmWeightTarget, ArmWeightState
 
         # Target size in meters
-        TARGET_SIZE = 0.05  # 5 cm
+        TARGET_SIZE = 0.08  # 8 cm
         TARGET_REACH_SCALE = 2.0
         TARGET_COMPLETE_SCALE = 0.6
 
-        # Convert to pixels
+        # Convert to pixels (meters -> Unity units -> pixels)
         pixels_per_unity_unit = min(self.width(), self.height()) / 14.0
-        target_size_pixels = TARGET_SIZE * self.SCALE_X * pixels_per_unity_unit / self.SCALE_X # Simplified to TARGET_SIZE * pixels_per_unity_unit
+        # Use Z spread (ML range) as the reference for scaling
+        import marsdefs as mdef
+        z_spread = mdef.WORKSPACE_Z_MAX - mdef.WORKSPACE_Z_MIN
+        target_size_pixels = (TARGET_SIZE / z_spread) * self.SCALE_X * pixels_per_unity_unit
 
         for target, pos in self.arm_weight_targets.items():
             if target == ArmWeightTarget.NONE:
@@ -594,13 +597,15 @@ class WorkspaceAssessmentCanvas(QWidget):
         from assessment_discreach import DiscreteReachState
 
         # Target size in meters
-        TARGET_SIZE = 0.08  # 8 cm
+        TARGET_SIZE = 0.10  # 10 cm
         TARGET_REACH_SCALE = 2.0
         TARGET_COMPLETE_SCALE = 0.6
 
-        # Convert to pixels
+        # Convert to pixels (meters -> Unity units -> pixels)
         pixels_per_unity_unit = min(self.width(), self.height()) / 14.0
-        target_size_pixels = TARGET_SIZE * pixels_per_unity_unit
+        import marsdefs as mdef
+        z_spread = mdef.WORKSPACE_Z_MAX - mdef.WORKSPACE_Z_MIN
+        target_size_pixels = (TARGET_SIZE / z_spread) * self.SCALE_X * pixels_per_unity_unit
 
         for target, pos in self.discrete_reach_targets.items():
             if target == DiscreteReachTarget.NONE or pos is None:

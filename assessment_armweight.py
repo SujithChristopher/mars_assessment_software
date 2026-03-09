@@ -21,7 +21,7 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
     """Standalone Arm Weight assessment window."""
 
     # Arm weight constants (matching original implementation)
-    TARGET_SIZE = 0.05  # meters (5 cm)
+    TARGET_SIZE = 0.08  # meters (8 cm)
     TARGET_TOLERANCE = TARGET_SIZE * 0.5  # 2.5 cm
     RECORDING_TIME = 2.0  # seconds
     TARGET_REACH_SCALE = 2.0
