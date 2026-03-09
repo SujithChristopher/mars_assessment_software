@@ -518,7 +518,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         from arm_weight_data import ArmWeightTarget, ArmWeightState
 
         # Target size in meters
-        TARGET_SIZE = 0.08  # 8 cm
+        TARGET_SIZE = 0.05  # 5 cm
         TARGET_REACH_SCALE = 2.0
         TARGET_COMPLETE_SCALE = 0.6
 
@@ -597,7 +597,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         from assessment_discreach import DiscreteReachState
 
         # Target size in meters
-        TARGET_SIZE = 0.10  # 10 cm
+        TARGET_SIZE = 0.06  # 6 cm
         TARGET_REACH_SCALE = 2.0
         TARGET_COMPLETE_SCALE = 0.6
 
