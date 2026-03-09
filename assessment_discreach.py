@@ -35,7 +35,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
     """Discrete Reaching assessment window."""
 
     # Constants
-    TARGET_SIZE = 0.04  # meters (4 cm)
+    TARGET_SIZE = 0.03  # meters (3 cm)
     TARGET_TOLERANCE = TARGET_SIZE * 0.5
     HOLD_TIME = 3.0  # seconds
 
