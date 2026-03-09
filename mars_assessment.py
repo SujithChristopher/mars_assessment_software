@@ -270,6 +270,7 @@ class MarsAssessmentLauncher(QMainWindow):
         # Workspace Assessments Group
         assess_group = QGroupBox("Workspace Assessments")
         self.assess_layout = QVBoxLayout(assess_group)
+        self.assess_layout.setSpacing(25)
 
         # AP Assessment Row
         self.add_assessment_row("AP", "↕  Assess Anterior-Posterior", "(Forward/Backward Movement)", self.launch_ap_assessment)
@@ -373,7 +374,7 @@ class MarsAssessmentLauncher(QMainWindow):
             callback: Function to launch assessment
         """
         row_layout = QHBoxLayout()
-        row_layout.setSpacing(10)
+        row_layout.setSpacing(20)
 
         # Main button
         btn = QPushButton(f"{title}\n{subtitle}")
