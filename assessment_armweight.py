@@ -24,7 +24,7 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
     TARGET_SIZE = 0.025  # meters (2.5 cm)
     TARGET_TOLERANCE = TARGET_SIZE * 0.5  # 2.5 cm
     RECORDING_TIME = 2.0  # seconds
-    TARGET_REACH_SCALE = 2.0
+    TARGET_REACH_SCALE = 1.1
     TARGET_COMPLETE_SCALE = 0.6
 
     # Target sequence (matching original: TOP → RIGHT → BOTTOM → LEFT → CENTER)

@@ -519,7 +519,7 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # Target size in meters
         TARGET_SIZE = 0.025  # 2.5 cm
-        TARGET_REACH_SCALE = 2.0
+        TARGET_REACH_SCALE = 1.1
         TARGET_COMPLETE_SCALE = 0.6
 
         # Convert to pixels (meters -> Unity units -> pixels)
@@ -598,7 +598,7 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # Target size in meters
         TARGET_SIZE = 0.03  # 3 cm
-        TARGET_REACH_SCALE = 2.0
+        TARGET_REACH_SCALE = 1.1
         TARGET_COMPLETE_SCALE = 0.6
 
         # Convert to pixels (meters -> Unity units -> pixels)
