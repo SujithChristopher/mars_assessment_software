@@ -177,9 +177,9 @@ class WorkspaceAssessmentCanvas(QWidget):
                 self._draw_trial_boundaries(painter, self.current_arom, QColor(0, 100, 255, 100))
                 # Average boundary in Red
                 self._draw_average_boundaries(painter, self.current_arom, QColor(255, 0, 0, 150))
-            elif self.arm_weight_state is not None:
-                # Light gray reference for arm weight assessment
-                self._draw_arom_boundaries(painter, self.current_arom, QColor(150, 150, 150, 150), False)
+            elif self.arm_weight_state is not None or self.discrete_reach_state is not None:
+                # Light gray average reference for standalone assessments
+                self._draw_average_boundaries(painter, self.current_arom, QColor(150, 150, 150, 150))
             elif self.state == AromAssessState.DONE:
                 # Average boundary in Red
                 self._draw_average_boundaries(painter, self.current_arom, QColor(255, 0, 0, 150))
