@@ -258,6 +258,13 @@ class MarsAssessmentLauncher(QMainWindow):
         self.calibrate_btn.clicked.connect(self.on_calibrate)
         self.calibrate_btn.setEnabled(False)
         config_layout.addWidget(self.calibrate_btn)
+        
+        # Inline calibration status label
+        self.calib_status_label = QLabel("Calibration Status: Not Calibrated")
+        self.calib_status_label.setStyleSheet("color: #757575; font-style: italic;")
+        self.calib_status_label.setAlignment(Qt.AlignCenter)
+        self.calib_status_label.setWordWrap(True)
+        config_layout.addWidget(self.calib_status_label)
 
         # Set plane button
         self.set_plane_btn = QPushButton("Set Plane (90°)")
@@ -500,6 +507,10 @@ class MarsAssessmentLauncher(QMainWindow):
             # Enable configuration controls
             self.calibrate_btn.setEnabled(True)
             self.set_plane_btn.setEnabled(True)
+            
+            # Reset calibration status
+            self.calib_status_label.setText("Calibration Status: Not Calibrated")
+            self.calib_status_label.setStyleSheet("color: #757575; font-style: italic;")
 
             # Enable assessment buttons
             for btn in self.assessment_btns.values():
@@ -535,6 +546,8 @@ class MarsAssessmentLauncher(QMainWindow):
             # Disable configuration controls
             self.calibrate_btn.setEnabled(False)
             self.set_plane_btn.setEnabled(False)
+            self.calib_status_label.setText("Calibration Status: Not Calibrated")
+            self.calib_status_label.setStyleSheet("color: #757575; font-style: italic;")
 
             # Disable assessment buttons
             for btn in self.assessment_btns.values():
@@ -567,12 +580,9 @@ class MarsAssessmentLauncher(QMainWindow):
         """Handle calibrate button click."""
         if self.mars and self.mars.is_connected():
             try:
-                QMessageBox.information(self, "Calibration Steps",
-                                      "To calibrate the device:\n"
-                                      "1. Move the device to the fully extended (horizontal) position.\n"
-                                      "2. Ensure all joint angles are roughly 0.\n"
-                                      "3. Press the physical button on the MARS device to confirm.\n\n"
-                                      "Click OK to begin.")
+                self.calib_status_label.setText("Waiting for MARS button to be pressed.")
+                self.calib_status_label.setStyleSheet("color: #FF9800; font-weight: bold;")
+                
                 # Disconnect if previously connected to avoid multiple connections
                 try:
                     self.mars.btnreleased.disconnect(self._do_calibrate)
@@ -582,13 +592,16 @@ class MarsAssessmentLauncher(QMainWindow):
                 self.mars.btnreleased.connect(self._do_calibrate)
                 print("Waiting for physical button press to calibrate...")
             except Exception as e:
-                QMessageBox.warning(self, "Command Error",
-                                  f"Failed to setup calibration: {str(e)}")
+                self.calib_status_label.setText(f"Setup Error: {str(e)}")
+                self.calib_status_label.setStyleSheet("color: #f44336; font-weight: bold;")
 
     def _do_calibrate(self):
         """Helper to send calibration command when physical button is pressed."""
         if self.mars and self.mars.is_connected():
             try:
+                self.calib_status_label.setText("Calibrating...")
+                self.calib_status_label.setStyleSheet("color: #FF9800; font-weight: bold;")
+                
                 self.mars.calibrate()
                 print("Calibration command sent via physical button press.")
                 try:
@@ -599,15 +612,18 @@ class MarsAssessmentLauncher(QMainWindow):
                 QTimer.singleShot(500, self._check_calibration_success)
             except Exception as e:
                 print(f"Error sending calibration command: {e}")
+                self.calib_status_label.setText("Error during calibration.")
+                self.calib_status_label.setStyleSheet("color: #f44336; font-weight: bold;")
 
     def _check_calibration_success(self):
         """Check if calibration was successful."""
         if self.mars and self.mars.is_connected():
             if getattr(self.mars, 'calibration', 0) == 1:
-                QMessageBox.information(self, "Calibration Complete", "Device successfully calibrated.")
+                self.calib_status_label.setText("Calibration Successful ✓")
+                self.calib_status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
             else:
-                QMessageBox.warning(self, "Calibration Pending", 
-                                  "Device not calibrated yet. Please ensure device is still and angles are close to 0.")
+                self.calib_status_label.setText("Calibration Failed. Keep still & retry.")
+                self.calib_status_label.setStyleSheet("color: #f44336; font-weight: bold;")
 
 
     def on_set_plane(self):
