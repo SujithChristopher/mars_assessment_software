@@ -51,13 +51,16 @@ class DiscreteReachData:
             DiscreteReachTarget.RIGHT: None
         }
 
-        # Actual positions reached (averaged over hold duration)
+        # Actual positions reached (averaged over hold duration) - List of Trajectories
         self.actual_positions = {
-            DiscreteReachTarget.HOME: [], # Store trajectory during hold
+            DiscreteReachTarget.HOME: [],
             DiscreteReachTarget.TOP: [],
             DiscreteReachTarget.LEFT: [],
             DiscreteReachTarget.RIGHT: []
         }
+        
+        # Temporary storage for the current hold trial
+        self._current_trajectory = []
 
         self.target_completed = {
             DiscreteReachTarget.HOME: False,
@@ -118,13 +121,19 @@ class DiscreteReachData:
         """
         self._current_target = target
         self._is_recording = True
-        self.actual_positions[target] = []  # Clear any previous data
+        self._current_trajectory = []  # Start a fresh trajectory
 
-    def stop_target_recording(self):
-        """Stop recording for current target."""
+    def stop_target_recording(self, completed: bool = False):
+        """Stop recording for current target.
+        
+        Args:
+            completed: If True, the hold was successful and the trajectory is saved.
+        """
         self._is_recording = False
         if self._current_target != DiscreteReachTarget.NONE:
-            self.target_completed[self._current_target] = True
+            if completed and len(self._current_trajectory) > 0:
+                self.actual_positions[self._current_target].append(self._current_trajectory)
+                self.target_completed[self._current_target] = True
         self._current_target = DiscreteReachTarget.NONE
 
     def add_data_point(self, y: float, z: float):
@@ -137,7 +146,7 @@ class DiscreteReachData:
         if not self._is_recording or self._current_target == DiscreteReachTarget.NONE:
             return
 
-        self.actual_positions[self._current_target].append((y, z))
+        self._current_trajectory.append((y, z))
 
     @property
     def is_complete(self) -> bool:
@@ -210,11 +219,14 @@ class DiscreteReachData:
             for target in [DiscreteReachTarget.HOME, DiscreteReachTarget.TOP, 
                           DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
                 t_pos = self.target_positions[target]
-                a_data = self.actual_positions[target]
+                a_data = self.actual_positions[target]  # This is now a list of lists
                 
-                if a_data:
-                    avg_y = sum(p[0] for p in a_data) / len(a_data)
-                    avg_z = sum(p[1] for p in a_data) / len(a_data)
+                # Flatten the list of trajectories to calculate the overall average
+                flat_data = [p for trial in a_data for p in trial]
+                
+                if flat_data:
+                    avg_y = sum(p[0] for p in flat_data) / len(flat_data)
+                    avg_z = sum(p[1] for p in flat_data) / len(flat_data)
                 else:
                     avg_y, avg_z = None, None
                 
@@ -234,11 +246,14 @@ class DiscreteReachData:
 
             # Collected trajectory section
             writer.writerow(['Detailed Trajectory Data during Hold'])
-            writer.writerow(['Target', 'Y (m)', 'Z (m)'])
+            writer.writerow(['Target', 'Trial_Number', 'Y (m)', 'Z (m)'])
 
             for target in [DiscreteReachTarget.HOME, DiscreteReachTarget.TOP, 
                           DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
-                for y, z in self.actual_positions[target]:
-                    writer.writerow([target.name, f"{y:.6f}", f"{z:.6f}"])
+                # a_data is a list of trials, each trial is a list of (y,z) tuples
+                a_data = self.actual_positions[target]
+                for trial_idx, trial_data in enumerate(a_data):
+                    for y, z in trial_data:
+                        writer.writerow([target.name, trial_idx + 1, f"{y:.6f}", f"{z:.6f}"])
 
         return str(filepath)

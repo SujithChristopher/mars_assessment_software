@@ -40,12 +40,6 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
     HOLD_TIME = 3.0  # seconds
     TRIGGER_STAY_TIME = 1.0  # stay in target for 1s to trigger
 
-    # Peak target sequence
-    PEAK_SEQUENCE = [
-        DiscreteReachTarget.TOP,
-        DiscreteReachTarget.LEFT,
-        DiscreteReachTarget.RIGHT
-    ]
 
     @property
     def movement_type(self) -> str:
@@ -91,6 +85,17 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         self.dr_data.start_assessment()
         self.dr_state = DiscreteReachState.INIT
         self.current_peak_index = 0
+        
+        # Generate randomized sequence of 15 targets (5 of each)
+        import random
+        base_sequence = [
+            DiscreteReachTarget.TOP,
+            DiscreteReachTarget.LEFT,
+            DiscreteReachTarget.RIGHT
+        ] * 5
+        random.shuffle(base_sequence)
+        self.peak_sequence = base_sequence
+        
         self.canvas.discrete_reach_state = self.dr_state
         self.canvas.completed_discrete_targets = set()
         
@@ -133,7 +138,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                 self.canvas.instruction_text = "Return to Home position."
 
         elif self.dr_state == DiscreteReachState.MOVING_TO_TARGET:
-            target = self.PEAK_SEQUENCE[self.current_peak_index]
+            target = self.peak_sequence[self.current_peak_index]
             target_pos = self.dr_data.target_positions[target]
             if self._is_at_pos(y, z, target_pos):
                 if self.stay_in_target_start_time == 0:
@@ -170,7 +175,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
             
             if not self._is_at_pos(y, z, target_pos):
                 # Moved out of target - recording stopped, go back to moving
-                self.dr_data.stop_target_recording()
+                self.dr_data.stop_target_recording(completed=False)
                 self.canvas.countdown_timer = None
                 if target == DiscreteReachTarget.HOME:
                     self.dr_state = DiscreteReachState.MOVING_TO_HOME
@@ -194,11 +199,11 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
             else:
                 # Hold complete
                 self.canvas.countdown_timer = None
-                self.dr_data.stop_target_recording()
+                self.dr_data.stop_target_recording(completed=True)
                 
                 if target == DiscreteReachTarget.HOME:
                     # Home hold complete -> move to current peak or finish
-                    if self.current_peak_index >= len(self.PEAK_SEQUENCE):
+                    if self.current_peak_index >= len(self.peak_sequence):
                         # Final home hold complete
                         self.dr_state = DiscreteReachState.ALL_DONE
                         self.canvas.discrete_reach_state = self.dr_state
@@ -206,7 +211,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                         self.save_btn.setVisible(True)
                         print("Discrete Reaching assessment finished.")
                     else:
-                        peak_target = self.PEAK_SEQUENCE[self.current_peak_index]
+                        peak_target = self.peak_sequence[self.current_peak_index]
                         self.dr_state = DiscreteReachState.MOVING_TO_TARGET
                         self.canvas.current_discrete_reach_target = peak_target
                         self.canvas.discrete_reach_state = self.dr_state
@@ -214,9 +219,9 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                 else:
                     # Peak target hold complete
                     self.canvas.completed_discrete_targets.add(target)
-                    print(f"Completed {target.name}")
+                    print(f"Completed {target.name} ({self.current_peak_index + 1}/{len(self.peak_sequence)})")
                     
-                    if self.current_peak_index + 1 >= len(self.PEAK_SEQUENCE):
+                    if self.current_peak_index + 1 >= len(self.peak_sequence):
                         # This was the last peak target. 
                         # We must return to Home one last time to finish the loop.
                         self.dr_state = DiscreteReachState.TARGET_COMPLETE
@@ -240,7 +245,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
 
     def transition_to_final_home(self):
         """Transition back to Home after the last peak target."""
-        self.current_peak_index = len(self.PEAK_SEQUENCE) # Signal we are done with peaks
+        self.current_peak_index = len(self.peak_sequence) # Signal we are done with peaks
         self.dr_state = DiscreteReachState.MOVING_TO_HOME
         self.canvas.discrete_reach_state = self.dr_state
         self.canvas.current_discrete_reach_target = DiscreteReachTarget.HOME
