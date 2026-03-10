@@ -38,6 +38,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
     TARGET_SIZE = 0.03  # meters (3 cm)
     TARGET_TOLERANCE = TARGET_SIZE * 0.5
     HOLD_TIME = 3.0  # seconds
+    TRIGGER_STAY_TIME = 1.0  # stay in target for 1s to trigger
 
     # Peak target sequence
     PEAK_SEQUENCE = [
@@ -56,6 +57,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         self.dr_data = None
         self.current_peak_index = 0
         self.holding_start_time = 0.0
+        self.stay_in_target_start_time = 0.0
         
         super().__init__(mars, patient_id, time_point, is_demo, session_subdir, parent)
         self.canvas.instruction_text = "Discrete Reaching: Press robot button to begin"
@@ -115,18 +117,38 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         if self.dr_state == DiscreteReachState.MOVING_TO_HOME:
             home_pos = self.dr_data.target_positions[DiscreteReachTarget.HOME]
             if self._is_at_pos(y, z, home_pos):
-                self.dr_state = DiscreteReachState.IN_HOME
-                self.canvas.discrete_reach_state = self.dr_state
-                self.canvas.current_discrete_reach_target = DiscreteReachTarget.HOME
-                self.canvas.instruction_text = "Reached Home. Release button to start hold."
+                if self.stay_in_target_start_time == 0:
+                    self.stay_in_target_start_time = time.time()
+                
+                elapsed = time.time() - self.stay_in_target_start_time
+                if elapsed >= self.TRIGGER_STAY_TIME:
+                    self.dr_state = DiscreteReachState.HOLD_STABILIZING
+                    self.stay_in_target_start_time = 0.0
+                    self.canvas.current_discrete_reach_target = DiscreteReachTarget.HOME
+                    self.canvas.discrete_reach_state = self.dr_state
+                else:
+                    self.canvas.instruction_text = f"Stay in Home... {(self.TRIGGER_STAY_TIME - elapsed):.1f}s"
+            else:
+                self.stay_in_target_start_time = 0.0
+                self.canvas.instruction_text = "Return to Home position."
 
         elif self.dr_state == DiscreteReachState.MOVING_TO_TARGET:
             target = self.PEAK_SEQUENCE[self.current_peak_index]
             target_pos = self.dr_data.target_positions[target]
             if self._is_at_pos(y, z, target_pos):
-                self.dr_state = DiscreteReachState.IN_TARGET
-                self.canvas.discrete_reach_state = self.dr_state
-                self.canvas.instruction_text = f"Reached {target.name} target. Release button to start hold."
+                if self.stay_in_target_start_time == 0:
+                    self.stay_in_target_start_time = time.time()
+                
+                elapsed = time.time() - self.stay_in_target_start_time
+                if elapsed >= self.TRIGGER_STAY_TIME:
+                    self.dr_state = DiscreteReachState.HOLD_STABILIZING
+                    self.stay_in_target_start_time = 0.0
+                    self.canvas.discrete_reach_state = self.dr_state
+                else:
+                    self.canvas.instruction_text = f"Stay in {target.name}... {(self.TRIGGER_STAY_TIME - elapsed):.1f}s"
+            else:
+                self.stay_in_target_start_time = 0.0
+                self.canvas.instruction_text = f"Reach to {target.name} target."
 
         elif self.dr_state == DiscreteReachState.HOLD_STABILIZING:
             # Short delay or check if within target before starting timer
@@ -247,20 +269,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
             self.canvas.current_discrete_reach_target = DiscreteReachTarget.HOME
             self.canvas.discrete_reach_state = self.dr_state
             self.canvas.instruction_text = "Move to Home position (bottom vertex)."
-
-        elif self.dr_state == DiscreteReachState.IN_HOME:
-            # Button released at Home -> Start 3s hold at Home
-            self.holding_start_time = time.time()
-            self.dr_state = DiscreteReachState.HOLD_STABILIZING
-            self.canvas.discrete_reach_state = self.dr_state
-            self.canvas.instruction_text = "Holding Home... (3s)"
-
-        elif self.dr_state == DiscreteReachState.IN_TARGET:
-            # Button released at Target -> Start 3s hold at Target
-            self.holding_start_time = time.time()
-            self.dr_state = DiscreteReachState.HOLD_STABILIZING
-            self.canvas.discrete_reach_state = self.dr_state
-            self.canvas.instruction_text = f"Holding {self.PEAK_SEQUENCE[self.current_peak_index].name}... (3s)"
+            self.stay_in_target_start_time = 0.0
 
     def handle_new_data(self):
         """Process new data from robot."""
