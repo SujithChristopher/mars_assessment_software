@@ -98,6 +98,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         
         self.canvas.discrete_reach_state = self.dr_state
         self.canvas.completed_discrete_targets = set()
+        self.canvas.dr_is_in_target = False  # Track if currently within radius
         
         # UI configuration
         self.recalibrate_btn.setVisible(False)
@@ -122,6 +123,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         if self.dr_state == DiscreteReachState.MOVING_TO_HOME:
             home_pos = self.dr_data.target_positions[DiscreteReachTarget.HOME]
             if self._is_at_pos(y, z, home_pos):
+                self.canvas.dr_is_in_target = True
                 if self.stay_in_target_start_time == 0:
                     self.stay_in_target_start_time = time.time()
                 
@@ -131,9 +133,11 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                     self.stay_in_target_start_time = 0.0
                     self.canvas.current_discrete_reach_target = DiscreteReachTarget.HOME
                     self.canvas.discrete_reach_state = self.dr_state
+                    self.canvas.dr_is_in_target = False  # Handled by HOLD state
                 else:
                     self.canvas.instruction_text = f"Stay in Home... {(self.TRIGGER_STAY_TIME - elapsed):.1f}s"
             else:
+                self.canvas.dr_is_in_target = False
                 self.stay_in_target_start_time = 0.0
                 self.canvas.instruction_text = "Return to Home position."
 
@@ -141,6 +145,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
             target = self.peak_sequence[self.current_peak_index]
             target_pos = self.dr_data.target_positions[target]
             if self._is_at_pos(y, z, target_pos):
+                self.canvas.dr_is_in_target = True
                 if self.stay_in_target_start_time == 0:
                     self.stay_in_target_start_time = time.time()
                 
@@ -149,9 +154,11 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                     self.dr_state = DiscreteReachState.HOLD_STABILIZING
                     self.stay_in_target_start_time = 0.0
                     self.canvas.discrete_reach_state = self.dr_state
+                    self.canvas.dr_is_in_target = False  # Handled by HOLD state
                 else:
                     self.canvas.instruction_text = f"Stay in {target.name}... {(self.TRIGGER_STAY_TIME - elapsed):.1f}s"
             else:
+                self.canvas.dr_is_in_target = False
                 self.stay_in_target_start_time = 0.0
                 self.canvas.instruction_text = f"Reach to {target.name} target."
 

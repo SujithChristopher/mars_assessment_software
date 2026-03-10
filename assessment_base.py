@@ -628,19 +628,14 @@ class WorkspaceAssessmentCanvas(QWidget):
             elif target == self.current_discrete_reach_target:
                 if self.discrete_reach_state in [DiscreteReachState.MOVING_TO_TARGET, 
                                                DiscreteReachState.MOVING_TO_HOME]:
-                    # Moving to target: filled box (Orange for Home, Blue for Peak)
-                    size = target_size_pixels
+                    # Moving to target: 100% size normally, 110% size if waiting for 1s trigger. Same color.
+                    is_in_target = getattr(self, 'dr_is_in_target', False)
+                    size = target_size_pixels * TARGET_REACH_SCALE if is_in_target else target_size_pixels
                     color = QColor(255, 140, 0) if target == DiscreteReachTarget.HOME else QColor(0, 0, 255)
                     painter.setPen(QPen(color, 2))
                     painter.setBrush(QBrush(color))
-                elif self.discrete_reach_state in [DiscreteReachState.IN_TARGET, DiscreteReachState.IN_HOME]:
-                    # Reached target: larger green outline
-                    size = target_size_pixels * TARGET_REACH_SCALE
-                    color = QColor(0, 200, 0)
-                    painter.setPen(QPen(color, 3))
-                    painter.setBrush(QBrush(QColor(0, 200, 0, 100)))
                 elif self.discrete_reach_state in [DiscreteReachState.HOLDING, DiscreteReachState.HOLD_STABILIZING]:
-                    # Holding/Recording: pulsing green box
+                    # Holding/Recording: 110% size, Solid Green
                     size = target_size_pixels * TARGET_REACH_SCALE
                     color = QColor(0, 255, 0)
                     painter.setPen(QPen(color, 4))
