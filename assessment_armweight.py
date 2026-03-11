@@ -155,7 +155,20 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
 
             # Collect data point
             force = self.mars.force
-            self.arm_weight_data.add_data_point(y, z, force)
+            
+            # Formulate the unified raw row dictionary for tracking target
+            target_pos = self.arm_weight_data.target_positions[self.current_target]
+            target_screen_pos = self.canvas.robot_to_screen(target_pos[0], target_pos[1])
+            
+            row_dict = self._get_current_raw_data_row(
+                y, z, 
+                game_target_x=target_screen_pos[0], 
+                game_target_y=target_screen_pos[1], 
+                end_point_target_y=target_pos[0], 
+                end_point_target_z=target_pos[1]
+            )
+            
+            self.arm_weight_data.add_data_point(y, z, force, row_dict)
 
             # Check if recording time complete
             elapsed = time.time() - self.recording_start_time

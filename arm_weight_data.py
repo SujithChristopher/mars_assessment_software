@@ -133,18 +133,19 @@ class ArmWeightData:
             self.target_completed[self._current_target] = True
         self._current_target = ArmWeightTarget.NONE
 
-    def add_data_point(self, y: float, z: float, force: float):
+    def add_data_point(self, y: float, z: float, force: float, raw_row: dict = None):
         """Add a data point during recording.
 
         Args:
             y: Y coordinate in meters
             z: Z coordinate in meters
             force: Force reading in Newtons
+            raw_row: Dictionary of complete MARS device/game state for raw logging
         """
         if not self._is_recording or self._current_target == ArmWeightTarget.NONE:
             return
 
-        self.target_data[self._current_target].append((y, z, force))
+        self.target_data[self._current_target].append((y, z, force, raw_row or {}))
 
     @property
     def is_complete(self) -> bool:
@@ -234,8 +235,47 @@ class ArmWeightData:
             for target in [ArmWeightTarget.TOP, ArmWeightTarget.RIGHT,
                           ArmWeightTarget.BOTTOM, ArmWeightTarget.LEFT,
                           ArmWeightTarget.CENTER]:
-                for y, z, force in self.target_data[target]:
+                for pt in self.target_data[target]:
+                    y, z, force = pt[0], pt[1], pt[2]
                     writer.writerow([target.name, f"{y:.6f}", f"{z:.6f}", f"{force:.4f}"])
+
+        # Write Raw Trajectory CSV
+        raw_filepath = session_folder / f"raw-{filename}"
+        with open(raw_filepath, 'w', newline='') as f:
+            writer = csv.writer(f)
+            
+            # First 3 metadata rows
+            writer.writerow([":Device: MARS"])
+            writer.writerow([":Location: CMCV"])
+            writer.writerow([":Movement: ArmWeight"])
+            
+            # Universal header
+            headers = [
+                "DeviceRunTime", "PacketNumber", "Status", "ControlType", "ErrorStatus",
+                "Limb", "Calibration", "MarsAngle1", "MarsAngle2", "MarsAngle3", "MarsAngle4",
+                "Force", "Target", "Desired", "Control", "Button", "EndPointX", "EndPointY",
+                "EndPointZ", "EndPointYPlane", "EndPointZPlane", "EndPointTargetY",
+                "EndPointTargetZ", "Error", "ErrorDiff", "ErrorSum", "GamePlayerX",
+                "GamePlayerY", "GameTargetX", "GameTargetY", "GameState", "Annotation",
+                "Miscellaneous"
+            ]
+            writer.writerow(headers)
+            
+            for target in [ArmWeightTarget.TOP, ArmWeightTarget.RIGHT,
+                          ArmWeightTarget.BOTTOM, ArmWeightTarget.LEFT,
+                          ArmWeightTarget.CENTER]:
+                for pt in self.target_data[target]:
+                    row_dict = pt[3] if len(pt) > 3 else {}
+                    
+                    # Build the row to match the 33 headers
+                    out_row = []
+                    for header in headers:
+                        val = row_dict.get(header, "")
+                        if isinstance(val, float):
+                            out_row.append(f"{val:.6g}") 
+                        else:
+                            out_row.append(str(val))
+                    writer.writerow(out_row)
 
         return str(filepath)
 

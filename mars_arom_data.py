@@ -96,7 +96,10 @@ class MarsArom:
         # Save the trial trajectory to the main trajectory list with trial number
         if self.trial_trajectory:
             for pt in self.trial_trajectory:
-                self.raw_trajectory.append([pt[0], pt[1], self.current_trial_num])
+                # pt is either [y, z] or [y, z, {raw_row}]
+                # standard format in raw_trajectory will be [y, z, trial_num, {raw_row}]
+                row_dict = pt[2] if len(pt) > 2 else {}
+                self.raw_trajectory.append([pt[0], pt[1], self.current_trial_num, row_dict])
             self.trial_trajectory = []
             self.current_trial_num += 1
 
@@ -105,17 +108,24 @@ class MarsArom:
         self.trial_trajectory = []
         self._is_recording = True
 
-    def add_data_point(self, y: float, z: float):
+    def add_data_point(self, y: float, z: float, raw_row: dict = None):
         """Add a trajectory point during assessment.
 
         Args:
             y: Y coordinate (anterior-posterior) in meters
             z: Z coordinate (medio-lateral) in meters
+            raw_row: Dictionary of complete MARS device/game state for raw logging
         """
         if not self._is_recording:
             return
             
-        self.trial_trajectory.append([y, z])
+        # trial_trajectory only needs y,z for boundary calculation
+        # but we also keep the raw_row for the final raw_csv formulation
+        pt_data = [y, z]
+        if raw_row is not None:
+            pt_data.append(raw_row)
+            
+        self.trial_trajectory.append(pt_data)
 
     def stop_assessment(self):
         """Stop data collection entirely and compute final corner points."""
@@ -140,7 +150,8 @@ class MarsArom:
         # Combine final trial points
         if self.trial_trajectory:
             for pt in self.trial_trajectory:
-                self.raw_trajectory.append([pt[0], pt[1], self.current_trial_num])
+                row_dict = pt[2] if len(pt) > 2 else {}
+                self.raw_trajectory.append([pt[0], pt[1], self.current_trial_num, row_dict])
             self.trial_trajectory = []
 
     def _compute_corners_for_points(self, points):
@@ -370,10 +381,38 @@ class MarsArom:
         # Write Raw Trajectory CSV
         with open(raw_filepath, 'w', newline='') as f:
             writer = csv.writer(f)
-            writer.writerow(['trial_number', 'y (m)', 'z (m)'])
+            
+            # First 3 metadata rows
+            writer.writerow([":Device: MARS"])
+            writer.writerow([":Location: CMCV"])
+            writer.writerow([f":Movement: {self.movement_type}"])
+            
+            # Universal header
+            headers = [
+                "DeviceRunTime", "PacketNumber", "Status", "ControlType", "ErrorStatus",
+                "Limb", "Calibration", "MarsAngle1", "MarsAngle2", "MarsAngle3", "MarsAngle4",
+                "Force", "Target", "Desired", "Control", "Button", "EndPointX", "EndPointY",
+                "EndPointZ", "EndPointYPlane", "EndPointZPlane", "EndPointTargetY",
+                "EndPointTargetZ", "Error", "ErrorDiff", "ErrorSum", "GamePlayerX",
+                "GamePlayerY", "GameTargetX", "GameTargetY", "GameState", "Annotation",
+                "Miscellaneous"
+            ]
+            writer.writerow(headers)
+            
             for point in self.raw_trajectory:
-                # Store as [y, z, trial_num]
-                writer.writerow([point[2], f"{point[0]:.6f}", f"{point[1]:.6f}"])
+                # point is [y, z, trial_num, raw_row_dict]
+                row_dict = point[3] if len(point) > 3 else {}
+                
+                # Build the row to match the 33 headers
+                out_row = []
+                for header in headers:
+                    val = row_dict.get(header, "")
+                    if isinstance(val, float):
+                        # Format floats to reasonable precision, could do .6f or similar
+                        out_row.append(f"{val:.6g}") 
+                    else:
+                        out_row.append(str(val))
+                writer.writerow(out_row)
 
         return str(filepath)
 

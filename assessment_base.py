@@ -979,10 +979,58 @@ class BaseAssessmentWindow(QMainWindow):
                 should_add = dist >= mdef.AROM_DIST_THRESHOLD
 
             if should_add:
-                self.current_arom.add_data_point(y, z)
+                row_data = self._get_current_raw_data_row(y, z)
+                self.current_arom.add_data_point(y, z, row_data)
                 self.trajectory_points.append([y, z])
                 self.canvas.trajectory = self.trajectory_points
                 self.last_recorded_pos = (y, z)
+
+    def _get_current_raw_data_row(self, y: float, z: float, game_target_x: float = 0.0, game_target_y: float = 0.0, end_point_target_y: float = 0.0, end_point_target_z: float = 0.0) -> dict:
+        """
+        Generate a complete raw data dictionary conforming exactly to the 33-column
+        template for unified logging. 
+        """
+        if self.mars is None:
+            return {}
+
+        screen_pos = self.canvas.robot_to_screen(y, z)
+
+        row = {
+            "DeviceRunTime": self.mars.runtime,
+            "PacketNumber": self.mars.packet_number,
+            "Status": self.mars.status if self.mars.status is not None else 0,
+            "ControlType": self.mars.controltype if self.mars.controltype is not None else 0,
+            "ErrorStatus": self.mars.error,
+            "Limb": self.mars.limb,
+            "Calibration": self.mars.calibration if self.mars.calibration is not None else 0,
+            "MarsAngle1": self.mars.angle1,
+            "MarsAngle2": self.mars.angle2,
+            "MarsAngle3": self.mars.angle3,
+            "MarsAngle4": self.mars.angle4,
+            "Force": self.mars.force,
+            "Target": self.mars.target,
+            "Desired": self.mars.desired,
+            "Control": self.mars.control,
+            "Button": self.mars.button_state,
+            "EndPointX": self.mars.ep_pos_in_plane[0],
+            "EndPointY": self.mars.ep_pos_in_plane[1],
+            "EndPointZ": self.mars.ep_pos_in_plane[2],
+            "EndPointYPlane": y,
+            "EndPointZPlane": z,
+            "EndPointTargetY": end_point_target_y,
+            "EndPointTargetZ": end_point_target_z,
+            "Error": self.mars.err_p,
+            "ErrorDiff": self.mars.err_d,
+            "ErrorSum": self.mars.err_i,
+            "GamePlayerX": screen_pos[0],
+            "GamePlayerY": screen_pos[1],
+            "GameTargetX": game_target_x,
+            "GameTargetY": game_target_y,
+            "GameState": getattr(self, "state", 0).value if hasattr(self, "state") and hasattr(getattr(self, "state"), 'value') else 0,
+            "Annotation": "",
+            "Miscellaneous": ""
+        }
+        return row
 
     def handle_button_release(self):
         """Handle device button release - triggers state transitions.

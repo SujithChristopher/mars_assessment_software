@@ -194,7 +194,15 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                 return
 
             # Record data point
-            self.dr_data.add_data_point(y, z)
+            target_screen_pos = self.canvas.robot_to_screen(target_pos[0], target_pos[1])
+            row_dict = self._get_current_raw_data_row(
+                y, z, 
+                game_target_x=target_screen_pos[0], 
+                game_target_y=target_screen_pos[1], 
+                end_point_target_y=target_pos[0], 
+                end_point_target_z=target_pos[1]
+            )
+            self.dr_data.add_data_point(y, z, row_dict)
 
             # Check hold duration
             elapsed = time.time() - self.holding_start_time

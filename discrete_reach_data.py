@@ -136,17 +136,18 @@ class DiscreteReachData:
                 self.target_completed[self._current_target] = True
         self._current_target = DiscreteReachTarget.NONE
 
-    def add_data_point(self, y: float, z: float):
+    def add_data_point(self, y: float, z: float, raw_row: dict = None):
         """Add a data point during recording.
 
         Args:
             y: Y coordinate in meters
             z: Z coordinate in meters
+            raw_row: Dictionary of complete MARS device/game state for raw logging
         """
         if not self._is_recording or self._current_target == DiscreteReachTarget.NONE:
             return
 
-        self._current_trajectory.append((y, z))
+        self._current_trajectory.append((y, z, raw_row or {}))
 
     @property
     def is_complete(self) -> bool:
@@ -250,10 +251,49 @@ class DiscreteReachData:
 
             for target in [DiscreteReachTarget.HOME, DiscreteReachTarget.TOP, 
                           DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
-                # a_data is a list of trials, each trial is a list of (y,z) tuples
+                # a_data is a list of trials, each trial is a list of (y, z, {raw_row}) tuples
                 a_data = self.actual_positions[target]
                 for trial_idx, trial_data in enumerate(a_data):
-                    for y, z in trial_data:
-                        writer.writerow([target.name, trial_idx + 1, f"{y:.6f}", f"{z:.6f}"])
+                    for pt in trial_data:
+                        writer.writerow([target.name, trial_idx + 1, f"{pt[0]:.6f}", f"{pt[1]:.6f}"])
+
+        # Write Raw Trajectory CSV
+        raw_filepath = session_folder / f"raw-{filename}"
+        with open(raw_filepath, 'w', newline='') as f:
+            writer = csv.writer(f)
+            
+            # First 3 metadata rows
+            writer.writerow([":Device: MARS"])
+            writer.writerow([":Location: CMCV"])
+            writer.writerow([":Movement: DiscreteReach"])
+            
+            # Universal header
+            headers = [
+                "DeviceRunTime", "PacketNumber", "Status", "ControlType", "ErrorStatus",
+                "Limb", "Calibration", "MarsAngle1", "MarsAngle2", "MarsAngle3", "MarsAngle4",
+                "Force", "Target", "Desired", "Control", "Button", "EndPointX", "EndPointY",
+                "EndPointZ", "EndPointYPlane", "EndPointZPlane", "EndPointTargetY",
+                "EndPointTargetZ", "Error", "ErrorDiff", "ErrorSum", "GamePlayerX",
+                "GamePlayerY", "GameTargetX", "GameTargetY", "GameState", "Annotation",
+                "Miscellaneous"
+            ]
+            writer.writerow(headers)
+            
+            for target in [DiscreteReachTarget.HOME, DiscreteReachTarget.TOP, 
+                          DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
+                a_data = self.actual_positions[target]
+                for trial_idx, trial_data in enumerate(a_data):
+                    for pt in trial_data:
+                        row_dict = pt[2] if len(pt) > 2 else {}
+                        
+                        # Build the row to match the 33 headers
+                        out_row = []
+                        for header in headers:
+                            val = row_dict.get(header, "")
+                            if isinstance(val, float):
+                                out_row.append(f"{val:.6g}") 
+                            else:
+                                out_row.append(str(val))
+                        writer.writerow(out_row)
 
         return str(filepath)
