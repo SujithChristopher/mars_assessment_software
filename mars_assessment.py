@@ -4,9 +4,9 @@ MARS Workspace Assessment System - Main Launcher Window.
 Professional application for clinical workspace assessments with three
 assessment types: AP, ML, and MLAP.
 
-Author: Sivakumar Balasubramanian
+Authors: Sivakumar Balasubramanian and Sujith Christopher
 Date: 09 February 2026
-Email: siva82kb@gmail.com
+Email: siva82kb@gmail.com, sujiht.christopher52@gmail.com
 """
 
 import sys
