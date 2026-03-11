@@ -177,8 +177,8 @@ class WorkspaceAssessmentCanvas(QWidget):
                 self._draw_trial_boundaries(painter, self.current_arom, QColor(0, 100, 255, 100))
                 # Average boundary in Red
                 self._draw_average_boundaries(painter, self.current_arom, QColor(255, 0, 0, 150))
-            elif self.arm_weight_state is not None or self.discrete_reach_state is not None:
-                # Light gray average reference for standalone assessments
+            elif self.arm_weight_state is not None:
+                # Light gray average reference for standalone assessments (except Discrete Reaching)
                 self._draw_average_boundaries(painter, self.current_arom, QColor(150, 150, 150, 150))
             elif self.state == AromAssessState.DONE:
                 # Average boundary in Red
@@ -207,7 +207,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         self._draw_instruction_text(painter)
 
         # Range measurements (top-right)
-        if self.current_arom is not None and self.arm_weight_state is None:
+        if self.current_arom is not None and self.arm_weight_state is None and self.discrete_reach_state is None:
             self._draw_range_text(painter)
 
     def _draw_grid(self, painter):
@@ -1070,7 +1070,6 @@ class BaseAssessmentWindow(QMainWindow):
         """Update canvas state and repaint."""
         if self.mars and self.state in (AromAssessState.ASSESSROM, AromAssessState.TRIAL_PAUSE, AromAssessState.TRIAL_READY, AromAssessState.DONE):
             self.canvas.current_pos = self.mars.ep_pos_in_plane[1:]
-            self.canvas.limb_type = self.mars.limb
 
         self.canvas.state = self.state
         self.canvas.current_trial = self.current_trial
