@@ -272,6 +272,12 @@ class MarsAssessmentLauncher(QMainWindow):
         self.set_plane_btn.setEnabled(False)
         config_layout.addWidget(self.set_plane_btn)
 
+        # Real-time angle display
+        self.angle_display_label = QLabel("Current Angle: --°")
+        self.angle_display_label.setStyleSheet("color: #757575; font-size: 10pt; font-weight: bold;")
+        self.angle_display_label.setAlignment(Qt.AlignCenter)
+        config_layout.addWidget(self.angle_display_label)
+
         main_layout.addWidget(config_group)
 
         # Workspace Assessments Group
@@ -497,6 +503,9 @@ class MarsAssessmentLauncher(QMainWindow):
             # Start heartbeat timer (every 3 seconds)
             self.heartbeat_timer.start(3000)
 
+            # Connect data stream for angle updating
+            self.mars.newdata.connect(self.update_angle_display)
+
             # Update UI
             self.connect_btn.setText("Disconnect")
             self.status_label.setText("● Connected")
@@ -548,6 +557,7 @@ class MarsAssessmentLauncher(QMainWindow):
             self.set_plane_btn.setEnabled(False)
             self.calib_status_label.setText("Calibration Status: Not Calibrated")
             self.calib_status_label.setStyleSheet("color: #757575; font-style: italic;")
+            self.angle_display_label.setText("Current Angle: --°")
 
             # Disable assessment buttons
             for btn in self.assessment_btns.values():
@@ -575,6 +585,12 @@ class MarsAssessmentLauncher(QMainWindow):
             except Exception as e:
                 QMessageBox.warning(self, "Command Error",
                                   f"Failed to set limb: {str(e)}")
+
+    def update_angle_display(self):
+        """Update real-time angle display."""
+        if self.mars and self.mars.is_connected() and self.mars.is_data_available():
+            # Update the angle label with the base joint angle (plane angle)
+            self.angle_display_label.setText(f"Current Angle: {self.mars.angle1:.1f}°")
 
     def on_calibrate(self):
         """Handle calibrate button click."""
