@@ -100,7 +100,8 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
                 # Reached target
                 self.arm_weight_state = ArmWeightState.IN_TARGET
                 self.canvas.arm_weight_state = self.arm_weight_state
-                self.canvas.instruction_text = f"In {self.current_target.name} target. Release button to record."
+                target_name = self._get_display_target_name(self.current_target)
+                self.canvas.instruction_text = f"In {target_name} target. Release button to record."
                 print(f"Reached {self.current_target.name} target")
 
         elif self.arm_weight_state == ArmWeightState.IN_TARGET:
@@ -119,7 +120,8 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
                 self.canvas.countdown_timer = None
                 self.arm_weight_state = ArmWeightState.MOVING_TO_TARGET
                 self.canvas.arm_weight_state = self.arm_weight_state
-                self.canvas.instruction_text = f"Moving to {self.current_target.name} target..."
+                target_name = self._get_display_target_name(self.current_target)
+                self.canvas.instruction_text = f"Moving to {target_name} target..."
                 print(f"Left {self.current_target.name} target")
 
         elif self.arm_weight_state == ArmWeightState.RECORDING:
@@ -149,7 +151,8 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
                 self.canvas.countdown_timer = None
                 self.arm_weight_state = ArmWeightState.MOVING_TO_TARGET
                 self.canvas.arm_weight_state = self.arm_weight_state
-                self.canvas.instruction_text = f"Left target. Moving to {self.current_target.name} target..."
+                target_name = self._get_display_target_name(self.current_target)
+                self.canvas.instruction_text = f"Left target. Moving to {target_name} target..."
                 print(f"Left {self.current_target.name} target during recording")
                 return
 
@@ -176,7 +179,8 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
             
             if remaining > 0:
                 self.canvas.countdown_timer = remaining
-                self.canvas.instruction_text = f"Recording {self.current_target.name}... ({int(remaining + 0.9)}s)"
+                target_name = self._get_display_target_name(self.current_target)
+                self.canvas.instruction_text = f"Recording {target_name}... ({int(remaining + 0.9)}s)"
             else:
                 # Recording complete
                 self.arm_weight_data.stop_target_recording()
@@ -184,7 +188,8 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
                 self.arm_weight_state = ArmWeightState.TARGET_COMPLETE
                 self.canvas.completed_targets.add(self.current_target)
                 self.canvas.arm_weight_state = self.arm_weight_state
-                self.canvas.instruction_text = f"{self.current_target.name} target complete!"
+                target_name = self._get_display_target_name(self.current_target)
+                self.canvas.instruction_text = f"{target_name} target complete!"
                 print(f"Completed {self.current_target.name} target")
 
                 # Move to next target after short delay
@@ -207,7 +212,8 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
             self.arm_weight_state = ArmWeightState.MOVING_TO_TARGET
             self.canvas.current_arm_weight_target = self.current_target
             self.canvas.arm_weight_state = self.arm_weight_state
-            self.canvas.instruction_text = f"Moving to {self.current_target.name} target..."
+            target_name = self._get_display_target_name(self.current_target)
+            self.canvas.instruction_text = f"Moving to {target_name} target..."
             print(f"Moving to {self.current_target.name} target")
 
     def handle_button_release(self):
@@ -222,7 +228,8 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
             self.arm_weight_state = ArmWeightState.MOVING_TO_TARGET
             self.canvas.current_arm_weight_target = self.current_target
             self.canvas.arm_weight_state = self.arm_weight_state
-            self.canvas.instruction_text = f"Moving to {self.current_target.name} target..."
+            target_name = self._get_display_target_name(self.current_target)
+            self.canvas.instruction_text = f"Moving to {target_name} target..."
             print(f"Started arm weight assessment - moving to {self.current_target.name}")
 
         elif self.arm_weight_state == ArmWeightState.IN_TARGET:
@@ -231,7 +238,8 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
             self.arm_weight_data.start_target_recording(self.current_target)
             self.arm_weight_state = ArmWeightState.RECORDING
             self.canvas.arm_weight_state = self.arm_weight_state
-            self.canvas.instruction_text = f"Recording {self.current_target.name} target... Hold still!"
+            target_name = self._get_display_target_name(self.current_target)
+            self.canvas.instruction_text = f"Recording {target_name} target... Hold still!"
             print(f"Started recording {self.current_target.name} target")
 
     def handle_new_data(self):
@@ -256,3 +264,13 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
 
         # Close window
         self.close()
+
+    def _get_display_target_name(self, target: ArmWeightTarget) -> str:
+        """Get the correctly mirrored target name for UI instructions."""
+        name = target.name
+        if self.canvas.limb_type == "RIGHT":
+            if name == "LEFT":
+                return "RIGHT"
+            elif name == "RIGHT":
+                return "LEFT"
+        return name

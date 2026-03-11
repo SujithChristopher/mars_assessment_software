@@ -156,11 +156,13 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                     self.canvas.discrete_reach_state = self.dr_state
                     self.canvas.dr_is_in_target = False  # Handled by HOLD state
                 else:
-                    self.canvas.instruction_text = f"Stay in {target.name}... {(self.TRIGGER_STAY_TIME - elapsed):.1f}s"
+                    target_name = self._get_display_target_name(target)
+                    self.canvas.instruction_text = f"Stay in {target_name}... {(self.TRIGGER_STAY_TIME - elapsed):.1f}s"
             else:
                 self.canvas.dr_is_in_target = False
                 self.stay_in_target_start_time = 0.0
-                self.canvas.instruction_text = f"Reach to {target.name} target."
+                target_name = self._get_display_target_name(target)
+                self.canvas.instruction_text = f"Reach to {target_name} target."
 
         elif self.dr_state == DiscreteReachState.HOLD_STABILIZING:
             # Short delay or check if within target before starting timer
@@ -173,7 +175,8 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                 self.dr_data.start_target_recording(target)
                 self.canvas.discrete_reach_state = self.dr_state
             else:
-                self.canvas.instruction_text = f"Keep within {target.name} to hold."
+                target_name = self._get_display_target_name(target)
+                self.canvas.instruction_text = f"Keep within {target_name} to hold."
 
         elif self.dr_state == DiscreteReachState.HOLDING:
             # Holding at either Home or Peak target
@@ -190,7 +193,8 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                     self.dr_state = DiscreteReachState.MOVING_TO_TARGET
                 
                 self.canvas.discrete_reach_state = self.dr_state
-                self.canvas.instruction_text = f"Moved out! Return to {target.name}."
+                target_name = self._get_display_target_name(target)
+                self.canvas.instruction_text = f"Moved out! Return to {target_name}."
                 return
 
             # Record data point
@@ -210,7 +214,8 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
             
             if remaining > 0:
                 self.canvas.countdown_timer = remaining
-                self.canvas.instruction_text = f"Holding {target.name}... ({int(remaining + 0.9)}s)"
+                target_name = self._get_display_target_name(target)
+                self.canvas.instruction_text = f"Holding {target_name}... ({int(remaining + 0.9)}s)"
             else:
                 # Hold complete
                 self.canvas.countdown_timer = None
@@ -230,7 +235,8 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                         self.dr_state = DiscreteReachState.MOVING_TO_TARGET
                         self.canvas.current_discrete_reach_target = peak_target
                         self.canvas.discrete_reach_state = self.dr_state
-                        self.canvas.instruction_text = f"Home hold complete! Reach to {peak_target.name}."
+                        target_name = self._get_display_target_name(peak_target)
+                        self.canvas.instruction_text = f"Home hold complete! Reach to {target_name}."
                 else:
                     # Peak target hold complete
                     self.canvas.completed_discrete_targets.add(target)
@@ -241,14 +247,16 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                         # We must return to Home one last time to finish the loop.
                         self.dr_state = DiscreteReachState.TARGET_COMPLETE
                         self.canvas.discrete_reach_state = self.dr_state
-                        self.canvas.instruction_text = f"{target.name} complete! Return to Home to finish."
+                        target_name = self._get_display_target_name(target)
+                        self.canvas.instruction_text = f"{target_name} complete! Return to Home to finish."
                         # Use a state that indicates we are finished with peaks and just need to reach home
                         QTimer.singleShot(1000, self.transition_to_final_home)
                     else:
                         # Transition back to Home for the next peak
                         self.dr_state = DiscreteReachState.TARGET_COMPLETE
                         self.canvas.discrete_reach_state = self.dr_state
-                        self.canvas.instruction_text = f"{target.name} complete! Return to Home."
+                        target_name = self._get_display_target_name(target)
+                        self.canvas.instruction_text = f"{target_name} complete! Return to Home."
                         QTimer.singleShot(1000, self.auto_transition_after_hold)
 
     def _is_at_pos(self, y: float, z: float, target_pos: tuple) -> bool:
@@ -297,6 +305,16 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         super().handle_new_data()
         # Process state machine
         self.run_dr_state_machine()
+
+    def _get_display_target_name(self, target: DiscreteReachTarget) -> str:
+        """Get the correctly mirrored target name for UI instructions."""
+        name = target.name
+        if self.canvas.limb_type == "RIGHT":
+            if name == "LEFT":
+                return "RIGHT"
+            elif name == "RIGHT":
+                return "LEFT"
+        return name
 
     def save_and_close(self):
         """Save results and exit window."""
