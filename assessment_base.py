@@ -190,6 +190,11 @@ class WorkspaceAssessmentCanvas(QWidget):
         if self.arm_weight_state is not None and len(self.arm_weight_targets) > 0:
             self._draw_arm_weight_targets(painter)
 
+        # Discrete reach targets (if active)
+        if self.discrete_reach_state is not None and len(self.discrete_reach_targets) > 0:
+            self._draw_discrete_reach_paths(painter)
+            self._draw_discrete_reach_targets(painter)
+
         # Current position cursor (green circle)
         if self.current_pos is not None:
             self._draw_cursor(painter)
@@ -197,11 +202,6 @@ class WorkspaceAssessmentCanvas(QWidget):
         # Timer (if active)
         if self.countdown_timer is not None:
             self._draw_countdown_timer(painter)
-
-        # Discrete reach targets (if active)
-        if self.discrete_reach_state is not None and len(self.discrete_reach_targets) > 0:
-            self._draw_discrete_reach_paths(painter)
-            self._draw_discrete_reach_targets(painter)
 
         # Instruction text (top-left)
         self._draw_instruction_text(painter)
