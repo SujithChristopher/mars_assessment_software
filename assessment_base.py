@@ -619,13 +619,7 @@ class WorkspaceAssessmentCanvas(QWidget):
             screen_pos = self.robot_to_screen(y, z)
 
             # Determine visual style based on state
-            if target != DiscreteReachTarget.HOME and target in self.completed_discrete_targets:
-                # Completed (non-home): small black box
-                size = target_size_pixels * TARGET_COMPLETE_SCALE
-                color = QColor(0, 0, 0)
-                painter.setPen(QPen(color, 2))
-                painter.setBrush(QBrush(color))
-            elif target == self.current_discrete_reach_target:
+            if target == self.current_discrete_reach_target:
                 if self.discrete_reach_state in [DiscreteReachState.MOVING_TO_TARGET, 
                                                DiscreteReachState.MOVING_TO_HOME]:
                     # Moving to target: 100% size normally, 110% size if waiting for 1s trigger. Same color.
@@ -634,8 +628,8 @@ class WorkspaceAssessmentCanvas(QWidget):
                     color = QColor(255, 140, 0) if target == DiscreteReachTarget.HOME else QColor(0, 0, 255)
                     painter.setPen(QPen(color, 2))
                     painter.setBrush(QBrush(color))
-                elif self.discrete_reach_state in [DiscreteReachState.HOLDING, DiscreteReachState.HOLD_STABILIZING]:
-                    # Holding/Recording: 110% size, Solid Green
+                elif self.discrete_reach_state in [DiscreteReachState.HOLDING, DiscreteReachState.HOLD_STABILIZING, DiscreteReachState.TARGET_COMPLETE]:
+                    # Holding/Recording/Complete: 110% size, Solid Green
                     size = target_size_pixels * TARGET_REACH_SCALE
                     color = QColor(0, 255, 0)
                     painter.setPen(QPen(color, 4))
