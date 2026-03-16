@@ -192,7 +192,7 @@ class MarsAssessmentLauncher(QMainWindow):
     def init_ui(self):
         """Create main window UI with stacked widget."""
         self.setWindowTitle("MARS Workspace Assessment System")
-        self.setFixedSize(650, 700)
+        self.setFixedSize(650, 800)
 
         # Stacked widget for scene management
         self.stack = QStackedWidget()

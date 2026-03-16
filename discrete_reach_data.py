@@ -225,7 +225,7 @@ class DiscreteReachData:
                 session_folder.mkdir(parents=True, exist_ok=True)
 
         # Create filename: discrete_reach.csv
-        filename = f"discrete_reach.csv"
+        filename = f"discrete-reach.csv"
         filepath = session_folder / filename
 
         # Write CSV
