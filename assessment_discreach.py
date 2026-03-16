@@ -54,6 +54,8 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         self.current_peak_index = 0
         self.holding_start_time = 0.0
         self.stay_in_target_start_time = 0.0
+        self.target_trial_counts = {t: 0 for t in DiscreteReachTarget}
+        self.last_tracked_target = DiscreteReachTarget.NONE
         
         super().__init__(mars, patient_id, time_point, is_demo, session_subdir, parent)
         self.canvas.instruction_text = "Discrete Reaching: Press robot button to begin"
@@ -309,6 +311,12 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         if self.mars is not None and self.dr_data is not None and getattr(self, "dr_state", None) not in (DiscreteReachState.INACTIVE, DiscreteReachState.INIT, DiscreteReachState.ALL_DONE):
             _, y, z = self.mars.ep_pos_in_plane
             target = getattr(self.canvas, "current_discrete_reach_target", DiscreteReachTarget.NONE)
+            
+            # Track trial number per target
+            if target != self.last_tracked_target and target != DiscreteReachTarget.NONE:
+                self.target_trial_counts[target] += 1
+                self.last_tracked_target = target
+            
             target_pos = self.dr_data.target_positions.get(target)
             
             if target_pos and target != DiscreteReachTarget.NONE:
@@ -331,12 +339,16 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                     game_state=self.dr_state.value,
                     state_name=state_str
                 )
+                row_dict["Target"] = target.name
+                row_dict["Trial_Number"] = self.target_trial_counts[target]
             else:
                 row_dict = self._get_current_raw_data_row(
                     y, z, 
                     game_state=self.dr_state.value,
                     state_name=self.dr_state.name
                 )
+                row_dict["Target"] = target.name if target != DiscreteReachTarget.NONE else ""
+                row_dict["Trial_Number"] = self.target_trial_counts.get(target, "")
             self.dr_data.add_raw_data_point(row_dict)
             self.dr_data.add_summary_point(row_dict)
 

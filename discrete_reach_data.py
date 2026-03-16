@@ -271,14 +271,16 @@ class DiscreteReachData:
 
             # Collected trajectory section
             writer.writerow(['Detailed Trajectory Data'])
-            writer.writerow(['Timestamp', 'MoveStates', 'Y (m)', 'Z (m)'])
+            writer.writerow(['Timestamp', 'Target', 'Trial_Number', 'MoveStates', 'Y (m)', 'Z (m)'])
 
             for row in self.summary_trajectory:
                 y = row.get("EndPointYPlane", 0.0)
                 z = row.get("EndPointZPlane", 0.0)
                 state = row.get("MoveStates", "")
-                t_str = row.get("SystemTime", "")
-                writer.writerow([t_str, state, f"{y:.6f}", f"{z:.6f}"])
+                timestamp = row.get("SystemTime", "")
+                target = row.get("Target", "")
+                trial = row.get("Trial_Number", "")
+                writer.writerow([timestamp, target, trial, state, f"{y:.6f}", f"{z:.6f}"])
 
         # Write Raw Trajectory CSV
         raw_filepath = session_folder / f"raw-{filename}"
