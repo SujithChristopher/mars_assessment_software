@@ -306,6 +306,12 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
             
             if target_pos and target != DiscreteReachTarget.NONE:
                 target_screen_pos = self.canvas.robot_to_screen(target_pos[0], target_pos[1])
+                
+                # Append target name to state (e.g. MOVING_TO_TARGET -> MOVING_TO_RIGHT)
+                state_str = self.dr_state.name
+                if self.dr_state in (DiscreteReachState.MOVING_TO_TARGET, DiscreteReachState.HOLDING_AT_TARGET, DiscreteReachState.MOVING_TO_HOME, DiscreteReachState.WAITING_AT_HOME):
+                    state_str = f"{state_str}_{target.name}"
+                
                 row_dict = self._get_current_raw_data_row(
                     y, z, 
                     game_target_x=target_screen_pos[0], 
@@ -313,7 +319,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                     end_point_target_y=target_pos[0], 
                     end_point_target_z=target_pos[1],
                     game_state=self.dr_state.value,
-                    state_name=self.dr_state.name
+                    state_name=state_str
                 )
             else:
                 row_dict = self._get_current_raw_data_row(

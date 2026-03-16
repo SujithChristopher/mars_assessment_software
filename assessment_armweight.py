@@ -245,6 +245,12 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
             
             if target_pos and self.current_target != ArmWeightTarget.NONE:
                 target_screen_pos = self.canvas.robot_to_screen(target_pos[0], target_pos[1])
+                
+                # Append target name to state (e.g. MOVING_TO_TARGET -> MOVING_TO_TOP)
+                state_str = self.arm_weight_state.name
+                if self.arm_weight_state in (ArmWeightState.MOVING_TO_TARGET, ArmWeightState.RECORDING, ArmWeightState.IN_TARGET):
+                    state_str = f"{state_str}_{self.current_target.name}"
+                
                 row_dict = self._get_current_raw_data_row(
                     y, z, 
                     game_target_x=target_screen_pos[0], 
@@ -252,7 +258,7 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
                     end_point_target_y=target_pos[0], 
                     end_point_target_z=target_pos[1],
                     game_state=self.arm_weight_state.value,
-                    state_name=self.arm_weight_state.name
+                    state_name=state_str
                 )
             else:
                 row_dict = self._get_current_raw_data_row(

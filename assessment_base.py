@@ -1027,9 +1027,8 @@ class BaseAssessmentWindow(QMainWindow):
             "GamePlayerY": screen_pos[1],
             "GameTargetX": game_target_x,
             "GameTargetY": game_target_y,
-            "GameState": game_state,
-            "Annotation": datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
-            "Miscellaneous": state_name
+            "SystemTime": datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
+            "MoveStates": state_name
         }
         return row
 

@@ -266,8 +266,8 @@ class ArmWeightData:
                 "Force", "Target", "Desired", "Control", "Button", "EndPointX", "EndPointY",
                 "EndPointZ", "EndPointYPlane", "EndPointZPlane", "EndPointTargetY",
                 "EndPointTargetZ", "Error", "ErrorDiff", "ErrorSum", "GamePlayerX",
-                "GamePlayerY", "GameTargetX", "GameTargetY", "GameState", "Annotation",
-                "Miscellaneous"
+                "GamePlayerY", "GameTargetX", "GameTargetY", "SystemTime",
+                "MoveStates"
             ]
             writer.writerow(headers)
             
