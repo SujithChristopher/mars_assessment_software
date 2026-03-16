@@ -198,15 +198,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                 return
 
             # Record data point
-            target_screen_pos = self.canvas.robot_to_screen(target_pos[0], target_pos[1])
-            row_dict = self._get_current_raw_data_row(
-                y, z, 
-                game_target_x=target_screen_pos[0], 
-                game_target_y=target_screen_pos[1], 
-                end_point_target_y=target_pos[0], 
-                end_point_target_z=target_pos[1]
-            )
-            self.dr_data.add_data_point(y, z, row_dict)
+            self.dr_data.add_data_point(y, z)
 
             # Check hold duration
             elapsed = time.time() - self.holding_start_time
@@ -305,6 +297,31 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         super().handle_new_data()
         # Process state machine
         self.run_dr_state_machine()
+
+        # Continuously log raw data
+        if self.mars is not None and self.dr_data is not None and getattr(self, "dr_state", None) not in (DiscreteReachState.INACTIVE, DiscreteReachState.INIT, DiscreteReachState.ALL_DONE):
+            _, y, z = self.mars.ep_pos_in_plane
+            target = getattr(self.canvas, "current_discrete_reach_target", DiscreteReachTarget.NONE)
+            target_pos = self.dr_data.target_positions.get(target)
+            
+            if target_pos and target != DiscreteReachTarget.NONE:
+                target_screen_pos = self.canvas.robot_to_screen(target_pos[0], target_pos[1])
+                row_dict = self._get_current_raw_data_row(
+                    y, z, 
+                    game_target_x=target_screen_pos[0], 
+                    game_target_y=target_screen_pos[1], 
+                    end_point_target_y=target_pos[0], 
+                    end_point_target_z=target_pos[1],
+                    game_state=self.dr_state.value,
+                    state_name=self.dr_state.name
+                )
+            else:
+                row_dict = self._get_current_raw_data_row(
+                    y, z, 
+                    game_state=self.dr_state.value,
+                    state_name=self.dr_state.name
+                )
+            self.dr_data.add_raw_data_point(row_dict)
 
     def _get_display_target_name(self, target: DiscreteReachTarget) -> str:
         """Get the correctly mirrored target name for UI instructions."""

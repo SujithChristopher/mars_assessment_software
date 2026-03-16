@@ -979,15 +979,22 @@ class BaseAssessmentWindow(QMainWindow):
                 self.canvas.trajectory = self.trajectory_points
                 self.last_recorded_pos = (y, z)
 
-    def _get_current_raw_data_row(self, y: float, z: float, game_target_x: float = 0.0, game_target_y: float = 0.0, end_point_target_y: float = 0.0, end_point_target_z: float = 0.0) -> dict:
+    def _get_current_raw_data_row(self, y: float, z: float, game_target_x: float = 0.0, game_target_y: float = 0.0, end_point_target_y: float = 0.0, end_point_target_z: float = 0.0, game_state: int = None, state_name: str = "") -> dict:
         """
         Generate a complete raw data dictionary conforming exactly to the 33-column
         template for unified logging. 
         """
+        from datetime import datetime
         if self.mars is None:
             return {}
 
         screen_pos = self.canvas.robot_to_screen(y, z)
+        
+        if game_state is None:
+            game_state = getattr(self, "state", 0).value if hasattr(self, "state") and hasattr(getattr(self, "state"), 'value') else 0
+            
+        if not state_name:
+            state_name = getattr(self, "state", "").name if hasattr(self, "state") and hasattr(getattr(self, "state"), 'name') else str(game_state)
 
         row = {
             "DeviceRunTime": self.mars.runtime,
@@ -1020,9 +1027,9 @@ class BaseAssessmentWindow(QMainWindow):
             "GamePlayerY": screen_pos[1],
             "GameTargetX": game_target_x,
             "GameTargetY": game_target_y,
-            "GameState": getattr(self, "state", 0).value if hasattr(self, "state") and hasattr(getattr(self, "state"), 'value') else 0,
-            "Annotation": "",
-            "Miscellaneous": ""
+            "GameState": game_state,
+            "Annotation": datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'),
+            "Miscellaneous": state_name
         }
         return row
 

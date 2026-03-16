@@ -86,6 +86,9 @@ class ArmWeightData:
 
         self._current_target = ArmWeightTarget.NONE
         self._is_recording = False
+        
+        # Raw trajectory continuously collected
+        self.raw_trajectory = []
 
     def initialize_from_mlap(self, mlap_arom, limb_type="RIGHT"):
         """Set target positions from MLAP assessment results.
@@ -133,19 +136,26 @@ class ArmWeightData:
             self.target_completed[self._current_target] = True
         self._current_target = ArmWeightTarget.NONE
 
-    def add_data_point(self, y: float, z: float, force: float, raw_row: dict = None):
+    def add_raw_data_point(self, raw_row: dict):
+        """Continuously collect generalized dict entries.
+        
+        Args:
+            raw_row: Dictionary of complete MARS device/game state for raw logging
+        """
+        self.raw_trajectory.append(raw_row)
+
+    def add_data_point(self, y: float, z: float, force: float):
         """Add a data point during recording.
 
         Args:
             y: Y coordinate in meters
             z: Z coordinate in meters
             force: Force reading in Newtons
-            raw_row: Dictionary of complete MARS device/game state for raw logging
         """
         if not self._is_recording or self._current_target == ArmWeightTarget.NONE:
             return
 
-        self.target_data[self._current_target].append((y, z, force, raw_row or {}))
+        self.target_data[self._current_target].append((y, z, force))
 
     @property
     def is_complete(self) -> bool:
@@ -210,7 +220,7 @@ class ArmWeightData:
 
             # Header section
             writer.writerow(['Arm Weight Assessment Data'])
-            writer.writerow(['Timestamp', self.timestamp.isoformat()])
+            writer.writerow(['Timestamp', self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')])
             writer.writerow([])
 
             # Target positions section
@@ -261,21 +271,15 @@ class ArmWeightData:
             ]
             writer.writerow(headers)
             
-            for target in [ArmWeightTarget.TOP, ArmWeightTarget.RIGHT,
-                          ArmWeightTarget.BOTTOM, ArmWeightTarget.LEFT,
-                          ArmWeightTarget.CENTER]:
-                for pt in self.target_data[target]:
-                    row_dict = pt[3] if len(pt) > 3 else {}
-                    
-                    # Build the row to match the 33 headers
-                    out_row = []
-                    for header in headers:
-                        val = row_dict.get(header, "")
-                        if isinstance(val, float):
-                            out_row.append(f"{val:.6g}") 
-                        else:
-                            out_row.append(str(val))
-                    writer.writerow(out_row)
+            for row_dict in self.raw_trajectory:
+                out_row = []
+                for header in headers:
+                    val = row_dict.get(header, "")
+                    if isinstance(val, float):
+                        out_row.append(f"{val:.6g}") 
+                    else:
+                        out_row.append(str(val))
+                writer.writerow(out_row)
 
         return str(filepath)
 

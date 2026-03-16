@@ -159,19 +159,7 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
             # Collect data point
             force = self.mars.force
             
-            # Formulate the unified raw row dictionary for tracking target
-            target_pos = self.arm_weight_data.target_positions[self.current_target]
-            target_screen_pos = self.canvas.robot_to_screen(target_pos[0], target_pos[1])
-            
-            row_dict = self._get_current_raw_data_row(
-                y, z, 
-                game_target_x=target_screen_pos[0], 
-                game_target_y=target_screen_pos[1], 
-                end_point_target_y=target_pos[0], 
-                end_point_target_z=target_pos[1]
-            )
-            
-            self.arm_weight_data.add_data_point(y, z, force, row_dict)
+            self.arm_weight_data.add_data_point(y, z, force)
 
             # Check if recording time complete
             elapsed = time.time() - self.recording_start_time
@@ -249,6 +237,30 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
 
         # Run arm weight state machine
         self.run_arm_weight_state_machine()
+
+        # Continuously log raw data
+        if self.mars is not None and self.arm_weight_data is not None and self.arm_weight_state not in (ArmWeightState.INACTIVE, ArmWeightState.INIT, ArmWeightState.ALL_DONE):
+            _, y, z = self.mars.ep_pos_in_plane
+            target_pos = self.arm_weight_data.target_positions.get(self.current_target)
+            
+            if target_pos and self.current_target != ArmWeightTarget.NONE:
+                target_screen_pos = self.canvas.robot_to_screen(target_pos[0], target_pos[1])
+                row_dict = self._get_current_raw_data_row(
+                    y, z, 
+                    game_target_x=target_screen_pos[0], 
+                    game_target_y=target_screen_pos[1], 
+                    end_point_target_y=target_pos[0], 
+                    end_point_target_z=target_pos[1],
+                    game_state=self.arm_weight_state.value,
+                    state_name=self.arm_weight_state.name
+                )
+            else:
+                row_dict = self._get_current_raw_data_row(
+                    y, z, 
+                    game_state=self.arm_weight_state.value,
+                    state_name=self.arm_weight_state.name
+                )
+            self.arm_weight_data.add_raw_data_point(row_dict)
 
     def save_arm_weight_and_close(self):
         """Save arm weight data and close window."""

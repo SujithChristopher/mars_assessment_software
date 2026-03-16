@@ -351,7 +351,7 @@ class MarsArom:
             for i, (ml, ap) in enumerate(self.trial_ranges):
                 trial_idx = i + 1
                 corners = self.trial_corners_history[i] if i < len(self.trial_corners_history) else (None, None, None, None)
-                trial_time = self.trial_timestamps[i].isoformat() if i < len(self.trial_timestamps) else self.timestamp.isoformat()
+                trial_time = self.trial_timestamps[i].strftime('%Y-%m-%d %H:%M:%S.%f') if i < len(self.trial_timestamps) else self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')
                 
                 row = [trial_time] + base_common_info + [
                     f"Trial {trial_idx}", f"{ml:.2f}", f"{ap:.2f}",
@@ -363,7 +363,7 @@ class MarsArom:
                 writer.writerow(row)
 
             # 2. Average row
-            avg_row = [self.timestamp.isoformat()] + base_common_info + [
+            avg_row = [self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + base_common_info + [
                 "AVERAGE", f"{self.ml_average_cm:.2f}", f"{self.ap_average_cm:.2f}",
                 self.average_top[0] if self.average_top else '', self.average_top[1] if self.average_top else '',
                 self.average_bottom[0] if self.average_bottom else '', self.average_bottom[1] if self.average_bottom else '',
@@ -373,7 +373,7 @@ class MarsArom:
             writer.writerow(avg_row)
 
             # 3. Maximum (Cumulative) row
-            max_row = [self.timestamp.isoformat()] + base_common_info + [
+            max_row = [self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + base_common_info + [
                 "MAXIMUM", f"{self.ml_range_cm:.2f}", f"{self.ap_range_cm:.2f}",
                 self.adjusted_top[0] if self.adjusted_top else '', self.adjusted_top[1] if self.adjusted_top else '',
                 self.adjusted_bottom[0] if self.adjusted_bottom else '', self.adjusted_bottom[1] if self.adjusted_bottom else '',

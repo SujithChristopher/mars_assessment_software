@@ -71,6 +71,9 @@ class DiscreteReachData:
 
         self._current_target = DiscreteReachTarget.NONE
         self._is_recording = False
+        
+        # Raw trajectory continuously collected
+        self.raw_trajectory = []
 
     def initialize_from_mlap(self, mlap_arom):
         """Calculate targets at 75% distance from bottom vertex.
@@ -136,18 +139,25 @@ class DiscreteReachData:
                 self.target_completed[self._current_target] = True
         self._current_target = DiscreteReachTarget.NONE
 
-    def add_data_point(self, y: float, z: float, raw_row: dict = None):
+    def add_raw_data_point(self, raw_row: dict):
+        """Continuously collect generalized dict entries.
+        
+        Args:
+            raw_row: Dictionary of complete MARS device/game state for raw logging
+        """
+        self.raw_trajectory.append(raw_row)
+
+    def add_data_point(self, y: float, z: float):
         """Add a data point during recording.
 
         Args:
             y: Y coordinate in meters
             z: Z coordinate in meters
-            raw_row: Dictionary of complete MARS device/game state for raw logging
         """
         if not self._is_recording or self._current_target == DiscreteReachTarget.NONE:
             return
 
-        self._current_trajectory.append((y, z, raw_row or {}))
+        self._current_trajectory.append((y, z))
 
     @property
     def is_complete(self) -> bool:
@@ -210,7 +220,7 @@ class DiscreteReachData:
 
             # Header section
             writer.writerow(['Discrete Reaching Assessment Data'])
-            writer.writerow(['Timestamp', self.timestamp.isoformat()])
+            writer.writerow(['Timestamp', self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')])
             writer.writerow([])
 
             # Target positions section
@@ -251,7 +261,7 @@ class DiscreteReachData:
 
             for target in [DiscreteReachTarget.HOME, DiscreteReachTarget.TOP, 
                           DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
-                # a_data is a list of trials, each trial is a list of (y, z, {raw_row}) tuples
+                # a_data is a list of trials, each trial is a list of (y, z) tuples
                 a_data = self.actual_positions[target]
                 for trial_idx, trial_data in enumerate(a_data):
                     for pt in trial_data:
@@ -279,21 +289,14 @@ class DiscreteReachData:
             ]
             writer.writerow(headers)
             
-            for target in [DiscreteReachTarget.HOME, DiscreteReachTarget.TOP, 
-                          DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
-                a_data = self.actual_positions[target]
-                for trial_idx, trial_data in enumerate(a_data):
-                    for pt in trial_data:
-                        row_dict = pt[2] if len(pt) > 2 else {}
-                        
-                        # Build the row to match the 33 headers
-                        out_row = []
-                        for header in headers:
-                            val = row_dict.get(header, "")
-                            if isinstance(val, float):
-                                out_row.append(f"{val:.6g}") 
-                            else:
-                                out_row.append(str(val))
-                        writer.writerow(out_row)
+            for row_dict in self.raw_trajectory:
+                out_row = []
+                for header in headers:
+                    val = row_dict.get(header, "")
+                    if isinstance(val, float):
+                        out_row.append(f"{val:.6g}") 
+                    else:
+                        out_row.append(str(val))
+                writer.writerow(out_row)
 
         return str(filepath)
