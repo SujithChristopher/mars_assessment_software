@@ -37,7 +37,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
     # Constants
     TARGET_SIZE = 0.03  # meters (3 cm)
     TARGET_TOLERANCE = TARGET_SIZE * 0.5
-    HOLD_TIME = 3.0  # seconds
+    HOLD_TIME = 1.0  # seconds
     TRIGGER_STAY_TIME = 1.0  # stay in target for 1s to trigger
 
 
@@ -92,7 +92,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
             DiscreteReachTarget.TOP,
             DiscreteReachTarget.LEFT,
             DiscreteReachTarget.RIGHT
-        ] * 5
+        ] * 3
         random.shuffle(base_sequence)
         self.peak_sequence = base_sequence
         
