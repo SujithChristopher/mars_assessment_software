@@ -74,6 +74,12 @@ class DiscreteReachData:
         
         # Raw trajectory continuously collected
         self.raw_trajectory = []
+        
+        # Summary trajectory for discrete_reach.csv
+        self.summary_trajectory = []
+        
+        # Chronological history of successful trials: list of (target, trajectory)
+        self.trial_history = []
 
     def initialize_from_mlap(self, mlap_arom):
         """Calculate targets at 75% distance from bottom vertex.
@@ -136,8 +142,14 @@ class DiscreteReachData:
         if self._current_target != DiscreteReachTarget.NONE:
             if completed and len(self._current_trajectory) > 0:
                 self.actual_positions[self._current_target].append(self._current_trajectory)
+                # Store in chronological history as well
+                self.trial_history.append((self._current_target, self._current_trajectory))
                 self.target_completed[self._current_target] = True
         self._current_target = DiscreteReachTarget.NONE
+
+    def add_summary_point(self, raw_row: dict):
+        """Collect points for the summary trajectory (discrete_reach.csv)."""
+        self.summary_trajectory.append(raw_row)
 
     def add_raw_data_point(self, raw_row: dict):
         """Continuously collect generalized dict entries.
@@ -258,19 +270,15 @@ class DiscreteReachData:
             writer.writerow([])
 
             # Collected trajectory section
-            writer.writerow(['Detailed Trajectory Data during Hold'])
-            writer.writerow(['Target', 'Trial_Number', 'Timestamp', 'MoveStates', 'Y (m)', 'Z (m)'])
+            writer.writerow(['Detailed Trajectory Data'])
+            writer.writerow(['Timestamp', 'MoveStates', 'Y (m)', 'Z (m)'])
 
-            for target in [DiscreteReachTarget.HOME, DiscreteReachTarget.TOP, 
-                          DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
-                # a_data is a list of trials, each trial is a list of tuples
-                a_data = self.actual_positions[target]
-                for trial_idx, trial_data in enumerate(a_data):
-                    for pt in trial_data:
-                        y, z = pt[0], pt[1]
-                        state = pt[2] if len(pt) > 2 else target.name
-                        t_str = pt[3] if len(pt) > 3 else ""
-                        writer.writerow([target.name, trial_idx + 1, t_str, state, f"{y:.6f}", f"{z:.6f}"])
+            for row in self.summary_trajectory:
+                y = row.get("EndPointYPlane", 0.0)
+                z = row.get("EndPointZPlane", 0.0)
+                state = row.get("MoveStates", "")
+                t_str = row.get("SystemTime", "")
+                writer.writerow([t_str, state, f"{y:.6f}", f"{z:.6f}"])
 
         # Write Raw Trajectory CSV
         raw_filepath = session_folder / f"raw-{filename}"

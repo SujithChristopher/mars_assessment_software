@@ -192,7 +192,7 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         # Discrete reach targets (if active)
         if self.discrete_reach_state is not None and len(self.discrete_reach_targets) > 0:
-            self._draw_discrete_reach_paths(painter)
+            # self._draw_discrete_reach_paths(painter)
             self._draw_discrete_reach_targets(painter)
 
         # Current position cursor (green circle)

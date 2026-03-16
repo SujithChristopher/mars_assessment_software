@@ -39,6 +39,8 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
     TARGET_TOLERANCE = TARGET_SIZE * 0.5
     HOLD_TIME = 1.0  # seconds
     TRIGGER_STAY_TIME = 1.0  # stay in target for 1s to trigger
+    POST_TARGET_DELAY_MS = 500  # ms before returning to home
+    FINAL_HOME_DELAY_MS = 500  # ms before final home reach
 
 
     @property
@@ -247,14 +249,14 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                         target_name = self._get_display_target_name(target)
                         self.canvas.instruction_text = f"{target_name} complete! Return to Home to finish."
                         # Use a state that indicates we are finished with peaks and just need to reach home
-                        QTimer.singleShot(1000, self.transition_to_final_home)
+                        QTimer.singleShot(self.FINAL_HOME_DELAY_MS, self.transition_to_final_home)
                     else:
                         # Transition back to Home for the next peak
                         self.dr_state = DiscreteReachState.TARGET_COMPLETE
                         self.canvas.discrete_reach_state = self.dr_state
                         target_name = self._get_display_target_name(target)
                         self.canvas.instruction_text = f"{target_name} complete! Return to Home."
-                        QTimer.singleShot(1000, self.auto_transition_after_hold)
+                        QTimer.singleShot(self.POST_TARGET_DELAY_MS, self.auto_transition_after_hold)
 
     def _is_at_pos(self, y: float, z: float, target_pos: tuple) -> bool:
         """Check if current position is within tolerance of target."""
@@ -314,7 +316,10 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                 
                 # Append target name to state (e.g. MOVING_TO_TARGET -> MOVING_TO_RIGHT)
                 state_str = self.dr_state.name
-                if self.dr_state in (DiscreteReachState.MOVING_TO_TARGET, DiscreteReachState.HOLDING_AT_TARGET, DiscreteReachState.MOVING_TO_HOME, DiscreteReachState.WAITING_AT_HOME):
+                if self.dr_state in (DiscreteReachState.MOVING_TO_TARGET, DiscreteReachState.IN_TARGET, 
+                                    DiscreteReachState.HOLD_STABILIZING, DiscreteReachState.HOLDING, 
+                                    DiscreteReachState.MOVING_TO_HOME, DiscreteReachState.IN_HOME,
+                                    DiscreteReachState.TARGET_COMPLETE):
                     state_str = f"{state_str}_{target.name}"
                 
                 row_dict = self._get_current_raw_data_row(
@@ -333,6 +338,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                     state_name=self.dr_state.name
                 )
             self.dr_data.add_raw_data_point(row_dict)
+            self.dr_data.add_summary_point(row_dict)
 
     def _get_display_target_name(self, target: DiscreteReachTarget) -> str:
         """Get the correctly mirrored target name for UI instructions."""
