@@ -254,7 +254,9 @@ class ArmWeightData:
                     writer.writerow([target.name, t_str, state, f"{y:.6f}", f"{z:.6f}", f"{force:.4f}"])
 
         # Write Raw Trajectory CSV
-        raw_filepath = session_folder / f"raw-{filename}"
+        raw_time_str = self.timestamp.strftime("%H-%M-%S")
+        raw_filename = f"raw-armweight-{date_str}-{raw_time_str}.csv"
+        raw_filepath = session_folder / raw_filename
         with open(raw_filepath, 'w', newline='') as f:
             writer = csv.writer(f)
             

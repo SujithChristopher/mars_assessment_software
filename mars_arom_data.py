@@ -321,7 +321,7 @@ class MarsArom:
 
         # Create filenames
         time_str = self.timestamp.strftime("%H-%M-%S")
-        filename = f"{self.movement_type.lower()}_rom.csv"
+        filename = f"{self.movement_type.lower()}-rom.csv"
         raw_filename = f"raw-{self.movement_type.lower()}-{date_str}-{time_str}.csv"
         
         filepath = session_folder / filename
