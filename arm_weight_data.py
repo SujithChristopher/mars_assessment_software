@@ -144,18 +144,21 @@ class ArmWeightData:
         """
         self.raw_trajectory.append(raw_row)
 
-    def add_data_point(self, y: float, z: float, force: float):
+    def add_data_point(self, y: float, z: float, force: float, raw_row: dict):
         """Add a data point during recording.
 
         Args:
             y: Y coordinate in meters
             z: Z coordinate in meters
             force: Force reading in Newtons
+            raw_row: The comprehensive dictionary containing the current state info
         """
         if not self._is_recording or self._current_target == ArmWeightTarget.NONE:
             return
 
-        self.target_data[self._current_target].append((y, z, force))
+        state = raw_row.get("MoveStates", self._current_target.name)
+        time_str = raw_row.get("SystemTime", datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
+        self.target_data[self._current_target].append((y, z, force, state, time_str))
 
     @property
     def is_complete(self) -> bool:
@@ -209,9 +212,8 @@ class ArmWeightData:
                 session_folder = parent_dir / f"session1-{date_str}"
                 session_folder.mkdir(parents=True, exist_ok=True)
 
-        # Create filename: armweight-{date}-{time}.csv
-        time_str = self.timestamp.strftime("%H-%M-%S")
-        filename = f"armweight-{date_str}-{time_str}.csv"
+        # Create filename: armweight.csv
+        filename = f"armweight.csv"
         filepath = session_folder / filename
 
         # Write CSV
@@ -240,14 +242,16 @@ class ArmWeightData:
 
             # Collected data section
             writer.writerow(['Collected Force Data'])
-            writer.writerow(['Target', 'Y (m)', 'Z (m)', 'Force (N)'])
+            writer.writerow(['Target', 'Timestamp', 'MoveStates', 'Y (m)', 'Z (m)', 'Force (N)'])
 
             for target in [ArmWeightTarget.TOP, ArmWeightTarget.RIGHT,
                           ArmWeightTarget.BOTTOM, ArmWeightTarget.LEFT,
                           ArmWeightTarget.CENTER]:
                 for pt in self.target_data[target]:
                     y, z, force = pt[0], pt[1], pt[2]
-                    writer.writerow([target.name, f"{y:.6f}", f"{z:.6f}", f"{force:.4f}"])
+                    state = pt[3] if len(pt) > 3 else target.name
+                    t_str = pt[4] if len(pt) > 4 else ""
+                    writer.writerow([target.name, t_str, state, f"{y:.6f}", f"{z:.6f}", f"{force:.4f}"])
 
         # Write Raw Trajectory CSV
         raw_filepath = session_folder / f"raw-{filename}"

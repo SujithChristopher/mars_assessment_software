@@ -159,7 +159,12 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
             # Collect data point
             force = self.mars.force
             
-            self.arm_weight_data.add_data_point(y, z, force)
+            row_dict = self._get_current_raw_data_row(
+                y, z, 
+                game_state=self.arm_weight_state.value,
+                state_name=f"{self.arm_weight_state.name}_{self.current_target.name}"
+            )
+            self.arm_weight_data.add_data_point(y, z, force, row_dict)
 
             # Check if recording time complete
             elapsed = time.time() - self.recording_start_time

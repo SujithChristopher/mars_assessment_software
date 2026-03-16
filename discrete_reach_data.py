@@ -147,17 +147,20 @@ class DiscreteReachData:
         """
         self.raw_trajectory.append(raw_row)
 
-    def add_data_point(self, y: float, z: float):
+    def add_data_point(self, y: float, z: float, raw_row: dict):
         """Add a data point during recording.
 
         Args:
             y: Y coordinate in meters
             z: Z coordinate in meters
+            raw_row: The comprehensive dictionary containing the current state info
         """
         if not self._is_recording or self._current_target == DiscreteReachTarget.NONE:
             return
 
-        self._current_trajectory.append((y, z))
+        state = raw_row.get("MoveStates", self._current_target.name)
+        time_str = raw_row.get("SystemTime", datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f'))
+        self._current_trajectory.append((y, z, state, time_str))
 
     @property
     def is_complete(self) -> bool:
@@ -209,9 +212,8 @@ class DiscreteReachData:
                 session_folder = parent_dir / f"session1-{date_str}"
                 session_folder.mkdir(parents=True, exist_ok=True)
 
-        # Create filename: discreach-{date}-{time}.csv
-        time_str = self.timestamp.strftime("%H-%M-%S")
-        filename = f"discreach-{date_str}-{time_str}.csv"
+        # Create filename: discrete_reach.csv
+        filename = f"discrete_reach.csv"
         filepath = session_folder / filename
 
         # Write CSV
@@ -257,15 +259,18 @@ class DiscreteReachData:
 
             # Collected trajectory section
             writer.writerow(['Detailed Trajectory Data during Hold'])
-            writer.writerow(['Target', 'Trial_Number', 'Y (m)', 'Z (m)'])
+            writer.writerow(['Target', 'Trial_Number', 'Timestamp', 'MoveStates', 'Y (m)', 'Z (m)'])
 
             for target in [DiscreteReachTarget.HOME, DiscreteReachTarget.TOP, 
                           DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
-                # a_data is a list of trials, each trial is a list of (y, z) tuples
+                # a_data is a list of trials, each trial is a list of tuples
                 a_data = self.actual_positions[target]
                 for trial_idx, trial_data in enumerate(a_data):
                     for pt in trial_data:
-                        writer.writerow([target.name, trial_idx + 1, f"{pt[0]:.6f}", f"{pt[1]:.6f}"])
+                        y, z = pt[0], pt[1]
+                        state = pt[2] if len(pt) > 2 else target.name
+                        t_str = pt[3] if len(pt) > 3 else ""
+                        writer.writerow([target.name, trial_idx + 1, t_str, state, f"{y:.6f}", f"{z:.6f}"])
 
         # Write Raw Trajectory CSV
         raw_filepath = session_folder / f"raw-{filename}"

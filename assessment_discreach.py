@@ -198,7 +198,12 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                 return
 
             # Record data point
-            self.dr_data.add_data_point(y, z)
+            row_dict = self._get_current_raw_data_row(
+                y, z, 
+                game_state=self.dr_state.value,
+                state_name=f"{self.dr_state.name}_{target.name}"
+            )
+            self.dr_data.add_data_point(y, z, row_dict)
 
             # Check hold duration
             elapsed = time.time() - self.holding_start_time
