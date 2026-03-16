@@ -60,6 +60,7 @@ class MarsArom:
         self.trial_right = None
         self.trial_ranges = []  # List of (ml_range_cm, ap_range_cm) tuples
         self.trial_corners_history = [] # List of (top, bottom, left, right) tuples
+        self.trial_timestamps = [] # List of datetime objects for each trial start
 
         self.trial_trajectory = [] # Only the points for the current trial as [y, z]
         self._is_recording = False
@@ -70,6 +71,7 @@ class MarsArom:
         self.timestamp = datetime.now()
         self.raw_trajectory = []
         self.trial_trajectory = []
+        self.trial_timestamps = [self.timestamp]
         self.current_trial_num = 1
         self._is_recording = True
 
@@ -106,6 +108,7 @@ class MarsArom:
     def resume_assessment(self):
         """Resume recording for the next trial, starting with a fresh visual trajectory."""
         self.trial_trajectory = []
+        self.trial_timestamps.append(datetime.now())
         self._is_recording = True
 
     def add_data_point(self, y: float, z: float, raw_row: dict = None):
@@ -337,8 +340,7 @@ class MarsArom:
                 'left_y', 'left_z', 'right_y', 'right_z'
             ])
 
-            common_info = [
-                self.timestamp.isoformat(),
+            base_common_info = [
                 self.plane_angle,
                 self.movement_type,
                 self.patient_id if self.patient_id else '',
@@ -349,7 +351,9 @@ class MarsArom:
             for i, (ml, ap) in enumerate(self.trial_ranges):
                 trial_idx = i + 1
                 corners = self.trial_corners_history[i] if i < len(self.trial_corners_history) else (None, None, None, None)
-                row = common_info + [
+                trial_time = self.trial_timestamps[i].isoformat() if i < len(self.trial_timestamps) else self.timestamp.isoformat()
+                
+                row = [trial_time] + base_common_info + [
                     f"Trial {trial_idx}", f"{ml:.2f}", f"{ap:.2f}",
                     corners[0][0] if corners[0] else '', corners[0][1] if corners[0] else '',
                     corners[1][0] if corners[1] else '', corners[1][1] if corners[1] else '',
@@ -359,7 +363,7 @@ class MarsArom:
                 writer.writerow(row)
 
             # 2. Average row
-            avg_row = common_info + [
+            avg_row = [self.timestamp.isoformat()] + base_common_info + [
                 "AVERAGE", f"{self.ml_average_cm:.2f}", f"{self.ap_average_cm:.2f}",
                 self.average_top[0] if self.average_top else '', self.average_top[1] if self.average_top else '',
                 self.average_bottom[0] if self.average_bottom else '', self.average_bottom[1] if self.average_bottom else '',
@@ -369,7 +373,7 @@ class MarsArom:
             writer.writerow(avg_row)
 
             # 3. Maximum (Cumulative) row
-            max_row = common_info + [
+            max_row = [self.timestamp.isoformat()] + base_common_info + [
                 "MAXIMUM", f"{self.ml_range_cm:.2f}", f"{self.ap_range_cm:.2f}",
                 self.adjusted_top[0] if self.adjusted_top else '', self.adjusted_top[1] if self.adjusted_top else '',
                 self.adjusted_bottom[0] if self.adjusted_bottom else '', self.adjusted_bottom[1] if self.adjusted_bottom else '',
