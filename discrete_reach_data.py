@@ -239,7 +239,7 @@ class DiscreteReachData:
 
             # Target positions section
             writer.writerow(['Target Summary (meters)'])
-            writer.writerow(['Target', 'Target Y', 'Target Z', 'Actual Y (avg)', 'Actual Z (avg)', 'Completed'])
+            writer.writerow(['Target', 'TargetY', 'TargetZ', 'ActualYAvg', 'ActualZAvg', 'Completed'])
             
             for target in [DiscreteReachTarget.HOME, DiscreteReachTarget.TOP, 
                           DiscreteReachTarget.LEFT, DiscreteReachTarget.RIGHT]:
@@ -271,7 +271,7 @@ class DiscreteReachData:
 
             # Collected trajectory section
             writer.writerow(['Detailed Trajectory Data'])
-            writer.writerow(['Timestamp', 'Target', 'Trial_Number', 'MoveStates', 'Y (m)', 'Z (m)'])
+            writer.writerow(['Timestamp', 'Target', 'TrialNumber', 'MoveStates', 'Y', 'Z'])
 
             for row in self.summary_trajectory:
                 y = row.get("EndPointYPlane", 0.0)

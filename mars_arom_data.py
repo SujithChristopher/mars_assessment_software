@@ -91,8 +91,8 @@ class MarsArom:
             self.trial_corners_history.append(trial_corners)
             
             # Store trial ranges for averaging
-            ml = abs(self.trial_right[1] - self.trial_left[1]) * 100.0
-            ap = abs(self.trial_top[0] - self.trial_bottom[0]) * 100.0
+            ml = abs(self.trial_right[1] - self.trial_left[1])
+            ap = abs(self.trial_top[0] - self.trial_bottom[0])
             self.trial_ranges.append((ml, ap))
 
         # Save the trial trajectory to the main trajectory list with trial number
@@ -146,8 +146,8 @@ class MarsArom:
             self.trial_corners_history.append(trial_corners)
             
             # Store trial ranges for averaging
-            ml = abs(self.trial_right[1] - self.trial_left[1]) * 100.0
-            ap = abs(self.trial_top[0] - self.trial_bottom[0]) * 100.0
+            ml = abs(self.trial_right[1] - self.trial_left[1])
+            ap = abs(self.trial_top[0] - self.trial_bottom[0])
             self.trial_ranges.append((ml, ap))
 
         # Combine final trial points
@@ -219,41 +219,41 @@ class MarsArom:
         pass
 
     @property
-    def ml_range_cm(self) -> float:
-        """Calculate medio-lateral range in centimeters (Global Maximum)."""
+    def ml_range(self) -> float:
+        """Calculate medio-lateral range in meters (Global Maximum)."""
         if self.adjusted_left is None or self.adjusted_right is None:
             return 0.0
-        return abs(self.adjusted_right[1] - self.adjusted_left[1]) * 100.0
+        return abs(self.adjusted_right[1] - self.adjusted_left[1])
 
     @property
-    def ap_range_cm(self) -> float:
-        """Calculate anterior-posterior range in centimeters (Global Maximum)."""
+    def ap_range(self) -> float:
+        """Calculate anterior-posterior range in meters (Global Maximum)."""
         if self.adjusted_top is None or self.adjusted_bottom is None:
             return 0.0
-        return abs(self.adjusted_top[0] - self.adjusted_bottom[0]) * 100.0
+        return abs(self.adjusted_top[0] - self.adjusted_bottom[0])
 
     @property
-    def ml_average_cm(self) -> float:
-        """Calculate average medio-lateral range across trials."""
+    def ml_average(self) -> float:
+        """Calculate average medio-lateral range across trials in meters."""
         if not self.trial_ranges:
             return 0.0
         return sum(r[0] for r in self.trial_ranges) / len(self.trial_ranges)
 
     @property
-    def ap_average_cm(self) -> float:
-        """Calculate average anterior-posterior range across trials."""
+    def ap_average(self) -> float:
+        """Calculate average anterior-posterior range across trials in meters."""
         if not self.trial_ranges:
             return 0.0
         return sum(r[1] for r in self.trial_ranges) / len(self.trial_ranges)
 
     @property
-    def average_ml_range_cm(self):
-        if not self.trial_ranges: return self.ml_range_cm
+    def average_ml_range(self):
+        if not self.trial_ranges: return self.ml_range
         return sum(r[0] for r in self.trial_ranges) / len(self.trial_ranges)
 
     @property
-    def average_ap_range_cm(self):
-        if not self.trial_ranges: return self.ap_range_cm
+    def average_ap_range(self):
+        if not self.trial_ranges: return self.ap_range
         return sum(r[1] for r in self.trial_ranges) / len(self.trial_ranges)
 
     @property
@@ -333,11 +333,11 @@ class MarsArom:
 
             # Header
             writer.writerow([
-                'datetime', 'plane_angle', 'movement_type',
-                'patient_id', 'time_point', 'trial_number',
-                'ml_range_cm', 'ap_range_cm',
-                'top_y', 'top_z', 'bottom_y', 'bottom_z',
-                'left_y', 'left_z', 'right_y', 'right_z'
+                'DateTime', 'PlaneAngle', 'MovementType',
+                'PatientId', 'TimePoint', 'TrialNumber',
+                'MLRange', 'APRange',
+                'TopY', 'TopZ', 'BottomY', 'BottomZ',
+                'LeftY', 'LeftZ', 'RightY', 'RightZ'
             ])
 
             base_common_info = [
@@ -354,7 +354,7 @@ class MarsArom:
                 trial_time = self.trial_timestamps[i].strftime('%Y-%m-%d %H:%M:%S.%f') if i < len(self.trial_timestamps) else self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')
                 
                 row = [trial_time] + base_common_info + [
-                    f"Trial {trial_idx}", f"{ml:.2f}", f"{ap:.2f}",
+                    f"Trial {trial_idx}", f"{ml:.6f}", f"{ap:.6f}",
                     corners[0][0] if corners[0] else '', corners[0][1] if corners[0] else '',
                     corners[1][0] if corners[1] else '', corners[1][1] if corners[1] else '',
                     corners[2][0] if corners[2] else '', corners[2][1] if corners[2] else '',
@@ -364,7 +364,7 @@ class MarsArom:
 
             # 2. Average row
             avg_row = [self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + base_common_info + [
-                "AVERAGE", f"{self.ml_average_cm:.2f}", f"{self.ap_average_cm:.2f}",
+                "AVERAGE", f"{self.ml_average:.6f}", f"{self.ap_average:.6f}",
                 self.average_top[0] if self.average_top else '', self.average_top[1] if self.average_top else '',
                 self.average_bottom[0] if self.average_bottom else '', self.average_bottom[1] if self.average_bottom else '',
                 self.average_left[0] if self.average_left else '', self.average_left[1] if self.average_left else '',
@@ -374,7 +374,7 @@ class MarsArom:
 
             # 3. Maximum (Cumulative) row
             max_row = [self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + base_common_info + [
-                "MAXIMUM", f"{self.ml_range_cm:.2f}", f"{self.ap_range_cm:.2f}",
+                "MAXIMUM", f"{self.ml_range:.6f}", f"{self.ap_range:.6f}",
                 self.adjusted_top[0] if self.adjusted_top else '', self.adjusted_top[1] if self.adjusted_top else '',
                 self.adjusted_bottom[0] if self.adjusted_bottom else '', self.adjusted_bottom[1] if self.adjusted_bottom else '',
                 self.adjusted_left[0] if self.adjusted_left else '', self.adjusted_left[1] if self.adjusted_left else '',
@@ -447,12 +447,12 @@ class MarsArom:
 
             # Create instance from first row
             data_dict = rows[0]
-            movement_type = data_dict['movement_type']
-            patient_id = data_dict.get('patient_id')
-            time_point = data_dict.get('time_point', 'A0')
+            movement_type = data_dict.get('MovementType', data_dict.get('movement_type'))
+            patient_id = data_dict.get('PatientId', data_dict.get('patient_id'))
+            time_point = data_dict.get('TimePoint', data_dict.get('time_point', 'A0'))
             
             # Backward compatibility for polluted movement_type strings
-            if '/' in movement_type:
+            if movement_type and '/' in movement_type:
                 parts = movement_type.split('/')
                 if len(parts) >= 3:
                     movement_type = parts[-1]
@@ -460,21 +460,31 @@ class MarsArom:
                     if time_point == 'A0': time_point = parts[1]
 
             arom = cls(movement_type, patient_id=patient_id, time_point=time_point)
-            arom.timestamp = datetime.fromisoformat(data_dict['datetime'])
-            arom.plane_angle = float(data_dict['plane_angle'])
+            arom.timestamp = datetime.fromisoformat(data_dict.get('DateTime', data_dict.get('datetime')))
+            arom.plane_angle = float(data_dict.get('PlaneAngle', data_dict.get('plane_angle')))
 
             # Populate trial data from rows
             for d in rows:
-                trial_label = d.get('trial_number', '')
+                trial_label = d.get('TrialNumber', d.get('trial_number', ''))
                 
                 # Extract corner positions if they exist
+                # Try CamelCase then snake_case
+                ty = d.get('TopY', d.get('top_y'))
+                tz = d.get('TopZ', d.get('top_z'))
+                by = d.get('BottomY', d.get('bottom_y'))
+                bz = d.get('BottomZ', d.get('bottom_z'))
+                ly = d.get('LeftY', d.get('left_y'))
+                lz = d.get('LeftZ', d.get('left_z'))
+                ry = d.get('RightY', d.get('right_y'))
+                rz = d.get('RightZ', d.get('right_z'))
+
                 corners = None
-                if d.get('top_y'):
+                if ty:
                     corners = (
-                        (float(d['top_y']), float(d['top_z'])),
-                        (float(d['bottom_y']), float(d['bottom_z'])),
-                        (float(d['left_y']), float(d['left_z'])),
-                        (float(d['right_y']), float(d['right_z']))
+                        (float(ty), float(tz)),
+                        (float(by), float(bz)),
+                        (float(ly), float(lz)),
+                        (float(ry), float(rz))
                     )
 
                 if "Trial" in trial_label:
@@ -482,8 +492,17 @@ class MarsArom:
                     if corners:
                         arom.trial_corners_history.append(corners)
                     
-                    if d.get('ml_range_cm') and d.get('ap_range_cm'):
-                        arom.trial_ranges.append((float(d['ml_range_cm']), float(d['ap_range_cm'])))
+                    # Convert cm to meters if loading old data
+                    ml_val = d.get('MLRange', d.get('ml_range_cm'))
+                    ap_val = d.get('APRange', d.get('ap_range_cm'))
+                    if ml_val is not None and ap_val is not None:
+                        is_old = 'ml_range_cm' in d
+                        ml_float = float(ml_val)
+                        ap_float = float(ap_val)
+                        if is_old:
+                            ml_float /= 100.0
+                            ap_float /= 100.0
+                        arom.trial_ranges.append((ml_float, ap_float))
                 
                 elif trial_label == "AVERAGE":
                     # Skip populating properties directly, they are calculated via trial_corners_history

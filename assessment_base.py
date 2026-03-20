@@ -462,8 +462,8 @@ class WorkspaceAssessmentCanvas(QWidget):
         painter.drawRoundedRect(x, y, panel_width, panel_height, 12, 12)
         
         # Stats setup
-        ml_avg = self.current_arom.ml_average_cm
-        ap_avg = self.current_arom.ap_average_cm
+        ml_avg = self.current_arom.ml_average
+        ap_avg = self.current_arom.ap_average
         ml_trial = self.current_arom.trial_ranges[-1][0] if self.current_arom.trial_ranges else 0.0
         ap_trial = self.current_arom.trial_ranges[-1][1] if self.current_arom.trial_ranges else 0.0
 
@@ -487,11 +487,11 @@ class WorkspaceAssessmentCanvas(QWidget):
             painter.setFont(font_value)
             painter.setPen(QPen(color))
             if self.movement_type == "AP":
-                text = f"{ap:.1f} cm"
+                text = f"{ap:.3f} m"
             elif self.movement_type == "ML":
-                text = f"{ml:.1f} cm"
+                text = f"{ml:.3f} m"
             else: # MLAP
-                text = f"ML: {ml:.1f}, AP: {ap:.1f} cm"
+                text = f"ML: {ml:.3f}, AP: {ap:.3f} m"
             
             painter.drawText(x + 15, top + 20, text)
 

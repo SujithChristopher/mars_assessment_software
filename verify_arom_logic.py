@@ -15,8 +15,8 @@ def test_mars_arom_logic():
     arom.add_data_point(1.0, 1.0)
     arom.pause_assessment()
     
-    print(f"Trial 1 Max AP: {arom.ap_range_cm:.2f} cm")
-    print(f"Trial 1 Avg AP: {arom.ap_average_cm:.2f} cm")
+    print(f"Trial 1 Max AP: {arom.ap_range:.2f} m")
+    print(f"Trial 1 Avg AP: {arom.ap_average:.2f} m")
     print(f"Trial 1 Avg Top Y: {arom.average_top[0]:.2f} m")
     
     # Trial 2: Smaller move (0,0) to (0.5, 0.5)
@@ -30,8 +30,8 @@ def test_mars_arom_logic():
     arom.pause_assessment()
     
     print(f"After Trial 2 (smaller):")
-    print(f"Max AP: {arom.ap_range_cm:.2f} cm (Should be ~100)")
-    print(f"Avg AP: {arom.ap_average_cm:.2f} cm (Should be ~75)")
+    print(f"Max AP: {arom.ap_range:.2f} m (Should be ~1.0)")
+    print(f"Avg AP: {arom.ap_average:.2f} m (Should be ~0.75)")
     print(f"Avg Top Y: {arom.average_top[0]:.2f} m (Should be ~0.75)")
     
     # Trial 3: Larger move (0,0) to (2.0, 2.0)
@@ -45,16 +45,16 @@ def test_mars_arom_logic():
     arom.stop_assessment()
     
     print(f"After Trial 3 (larger):")
-    print(f"Max AP: {arom.ap_range_cm:.2f} cm (Should be ~200)")
-    print(f"Avg AP: {arom.ap_average_cm:.2f} cm (Should be ~116)")
+    print(f"Max AP: {arom.ap_range:.2f} m (Should be ~2.0)")
+    print(f"Avg AP: {arom.ap_average:.2f} m (Should be ~1.16)")
 
     # Test Save/Load
     save_path = arom.save_to_csv(base_dir="tmp_test_data")
     print(f"Saved to {save_path}")
     
     loaded_arom = MarsArom.load_from_csv(save_path)
-    print(f"Loaded Max AP: {loaded_arom.ap_range_cm:.2f}")
-    print(f"Loaded Avg AP: {loaded_arom.ap_average_cm:.2f}")
+    print(f"Loaded Max AP: {loaded_arom.ap_range:.2f}")
+    print(f"Loaded Avg AP: {loaded_arom.ap_average:.2f}")
     print(f"Loaded Trial Ranges: {loaded_arom.trial_ranges}")
     
     # Cleanup

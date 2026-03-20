@@ -227,7 +227,7 @@ class ArmWeightData:
 
             # Target positions section
             writer.writerow(['Target Positions (meters)'])
-            writer.writerow(['Target', 'Y', 'Z', 'Completed', 'Data Points'])
+            writer.writerow(['Target', 'Y', 'Z', 'Completed', 'DataPoints'])
             for target in [ArmWeightTarget.TOP, ArmWeightTarget.RIGHT,
                           ArmWeightTarget.BOTTOM, ArmWeightTarget.LEFT,
                           ArmWeightTarget.CENTER]:
@@ -242,7 +242,7 @@ class ArmWeightData:
 
             # Collected data section
             writer.writerow(['Collected Force Data'])
-            writer.writerow(['Target', 'Timestamp', 'MoveStates', 'Y (m)', 'Z (m)', 'Force (N)'])
+            writer.writerow(['Target', 'Timestamp', 'MoveStates', 'Y', 'Z', 'Force'])
 
             for target in [ArmWeightTarget.TOP, ArmWeightTarget.RIGHT,
                           ArmWeightTarget.BOTTOM, ArmWeightTarget.LEFT,
