@@ -133,8 +133,8 @@ class PatientEntryWidget(QWidget):
             self.enter_btn.setEnabled(True)
             return
             
-        from pathlib import Path
-        lock_file = Path("data") / patient_id / time_point / ".locked"
+        from app_paths import get_data_dir
+        lock_file = get_data_dir() / patient_id / time_point / ".locked"
         
         if lock_file.exists():
             self.lock_label.setVisible(True)
@@ -332,11 +332,10 @@ class MarsAssessmentLauncher(QMainWindow):
         self.is_demo = is_demo
         
         # Determine session subdirectory once
-        from pathlib import Path
         from datetime import datetime
+        from app_paths import get_data_dir
         date_str = datetime.now().strftime("%Y-%m-%d")
-        base_dir = "data"
-        parent_dir = Path(base_dir) / patient_id / time_point
+        parent_dir = get_data_dir() / patient_id / time_point
         
         # Ensure parent directory exists
         if not parent_dir.exists():
@@ -763,9 +762,9 @@ class MarsAssessmentLauncher(QMainWindow):
 
     def lock_session(self):
         """Create a .locked file in the patient/timepoint directory."""
-        from pathlib import Path
         from datetime import datetime
-        lock_dir = Path("data") / self.patient_id / self.time_point
+        from app_paths import get_data_dir
+        lock_dir = get_data_dir() / self.patient_id / self.time_point
         if not lock_dir.exists():
             lock_dir.mkdir(parents=True, exist_ok=True)
         

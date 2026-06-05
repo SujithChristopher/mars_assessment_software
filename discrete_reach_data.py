@@ -183,16 +183,19 @@ class DiscreteReachData:
             DiscreteReachTarget.RIGHT
         ])
 
-    def save_to_csv(self, base_dir: str = "data", session_subdir: str = None) -> str:
+    def save_to_csv(self, base_dir: str = None, session_subdir: str = None) -> str:
         """Save discrete reaching data to CSV file.
 
         Args:
-            base_dir: Base directory for data storage
+            base_dir: Base directory for data storage (defaults to app data dir)
             session_subdir: Pre-determined session subdirectory (e.g. 'session1-2026-03-02')
 
         Returns:
             Full path to saved CSV file, or None if demo mode
         """
+        if base_dir is None:
+            from app_paths import get_data_dir
+            base_dir = str(get_data_dir())
         if self.timestamp is None:
             self.timestamp = datetime.now()
 

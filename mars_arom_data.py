@@ -280,16 +280,19 @@ class MarsArom:
         return (sum(c[3][0] for c in self.trial_corners_history) / len(self.trial_corners_history),
                 sum(c[3][1] for c in self.trial_corners_history) / len(self.trial_corners_history))
 
-    def save_to_csv(self, base_dir: str = "data", session_subdir: str = None) -> str:
+    def save_to_csv(self, base_dir: str = None, session_subdir: str = None) -> str:
         """Save AROM data to CSV file in session folder.
 
         Args:
-            base_dir: Base directory for data storage
+            base_dir: Base directory for data storage (defaults to app data dir)
             session_subdir: Pre-determined session subdirectory (e.g. 'session1-2026-03-02')
 
         Returns:
             Full path to saved CSV file, or None if demo mode
         """
+        if base_dir is None:
+            from app_paths import get_data_dir
+            base_dir = str(get_data_dir())
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
@@ -534,17 +537,20 @@ class MarsArom:
         return arom
 
     @staticmethod
-    def find_latest_assessment(movement_type: str, base_dir: str = "data", patient_id: str = None) -> 'MarsArom':
+    def find_latest_assessment(movement_type: str, base_dir: str = None, patient_id: str = None) -> 'MarsArom':
         """Find and load the most recent assessment of given type.
 
         Args:
             movement_type: Assessment type - "AP", "ML", or "MLAP"
-            base_dir: Base directory for data storage
+            base_dir: Base directory for data storage (defaults to app data dir)
             patient_id: Optional patient ID to filter by
 
         Returns:
             MarsArom instance or None if not found
         """
+        if base_dir is None:
+            from app_paths import get_data_dir
+            base_dir = str(get_data_dir())
         base_path = Path(base_dir)
         if not base_path.exists():
             return None
