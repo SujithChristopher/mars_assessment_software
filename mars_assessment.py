@@ -15,7 +15,7 @@ import serial.tools.list_ports
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QPushButton, QLabel, QComboBox,
                                QGroupBox, QMessageBox, QFrame, QLineEdit,
-                               QStackedWidget)
+                               QStackedWidget, QScrollArea)
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFont
 
@@ -192,7 +192,8 @@ class MarsAssessmentLauncher(QMainWindow):
     def init_ui(self):
         """Create main window UI with stacked widget."""
         self.setWindowTitle("MARS Workspace Assessment System")
-        self.setFixedSize(650, 800)
+        self.setMinimumSize(500, 400)  # Allow shrinking on small displays
+        self.resize(650, 800)          # Preferred size
 
         # Stacked widget for scene management
         self.stack = QStackedWidget()
@@ -203,12 +204,19 @@ class MarsAssessmentLauncher(QMainWindow):
         self.entry_widget.entry_complete.connect(self.start_main_launcher)
         self.stack.addWidget(self.entry_widget)
 
-        # Scene 2: Main Launcher Content
+        # Scene 2: Main Launcher Content (wrapped in scroll area so it stays
+        # usable on small displays where the full content would be cropped)
         self.launcher_widget = QWidget()
         main_layout = QVBoxLayout(self.launcher_widget)
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(15, 15, 15, 15)
-        self.stack.addWidget(self.launcher_widget)
+
+        self.launcher_scroll = QScrollArea()
+        self.launcher_scroll.setWidgetResizable(True)
+        self.launcher_scroll.setFrameShape(QFrame.NoFrame)
+        self.launcher_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.launcher_scroll.setWidget(self.launcher_widget)
+        self.stack.addWidget(self.launcher_scroll)
 
         # Connection Group
         conn_group = QGroupBox("Device Connection")
@@ -363,7 +371,7 @@ class MarsAssessmentLauncher(QMainWindow):
         self.setWindowTitle(f"MARS Assessment Launcher {session_info}")
         
         # Switch to launcher scene
-        self.stack.setCurrentWidget(self.launcher_widget)
+        self.stack.setCurrentWidget(self.launcher_scroll)
         
         # Disable lock button in demo mode
         self.lock_btn.setEnabled(not is_demo)
