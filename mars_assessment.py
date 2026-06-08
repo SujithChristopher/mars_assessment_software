@@ -55,9 +55,9 @@ class PatientEntryWidget(QWidget):
         id_layout = QVBoxLayout(id_group)
         
         id_input_layout = QHBoxLayout()
-        id_input_layout.addWidget(QLabel("HOMER ID:"))
+        id_input_layout.addWidget(QLabel("HOMER ID / Patient ID:"))
         self.id_input = QLineEdit()
-        self.id_input.setPlaceholderText("Enter Homer ID (e.g. HOMER_001)")
+        self.id_input.setPlaceholderText("Enter Homer / Patient ID (e.g. HOMER_001)")
         self.id_input.setMinimumHeight(35)
         self.id_input.textChanged.connect(self.update_lock_status)
         id_input_layout.addWidget(self.id_input)
