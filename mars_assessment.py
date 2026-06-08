@@ -76,7 +76,7 @@ class PatientEntryWidget(QWidget):
         time_layout = QHBoxLayout(time_group)
         time_layout.addWidget(QLabel("Time Point:"))
         self.time_combo = QComboBox()
-        self.time_combo.addItems(["A0", "A1", "A2"])
+        self.time_combo.addItems(["Screening", "A0", "A1", "A2"])
         self.time_combo.setMinimumHeight(35)
         self.time_combo.currentIndexChanged.connect(self.update_lock_status)
         time_layout.addWidget(self.time_combo, 1)
@@ -185,6 +185,10 @@ class MarsAssessmentLauncher(QMainWindow):
         self.completed_assessments = set()
         self.assessment_btns = {} # type -> QPushButton (main)
         self.redo_btns = {}       # type -> QPushButton (redo)
+        self.assessment_rows = {} # type -> QWidget (row container)
+
+        # Assessments not available during Screening
+        self.screening_excluded = {"ArmWeight", "DiscreteReaching"}
 
         self.init_ui()
         self.populate_com_ports()
@@ -372,6 +376,11 @@ class MarsAssessmentLauncher(QMainWindow):
         
         # Switch to launcher scene
         self.stack.setCurrentWidget(self.launcher_scroll)
+
+        # Screening only allows AP, ML, MLAP. Hide the rest.
+        is_screening = (time_point == "Screening")
+        for a_type, row in self.assessment_rows.items():
+            row.setVisible(not (is_screening and a_type in self.screening_excluded))
         
         # Disable lock button in demo mode
         self.lock_btn.setEnabled(not is_demo)
@@ -393,7 +402,9 @@ class MarsAssessmentLauncher(QMainWindow):
             subtitle: Subtitle for main button
             callback: Function to launch assessment
         """
-        row_layout = QHBoxLayout()
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+        row_layout.setContentsMargins(0, 0, 0, 0)
         row_layout.setSpacing(20)
 
         # Main button
@@ -414,7 +425,8 @@ class MarsAssessmentLauncher(QMainWindow):
         row_layout.addWidget(redo_btn)
         self.redo_btns[assess_type] = redo_btn
 
-        self.assess_layout.addLayout(row_layout)
+        self.assessment_rows[assess_type] = row_widget
+        self.assess_layout.addWidget(row_widget)
 
     def update_assessment_status(self, assess_type: str):
         """Update button style when assessment is completed.
