@@ -46,11 +46,13 @@ InDataType = {
 }
 
 ErrorTypes = {
-    "NOHEARTBEAT":          0x0000,
-    "ANG1MISMATCHERR":      0x0001,
-    "ANG234MISMATCHERR":    0x0002,
-    "ANG1JUMPERR":          0x0003,
-    "ANG234JUMPERR":        0x0004
+    "NOHEARTBEAT":          0x0001,
+    "ANG1MISMATCHERR":      0x0002,
+    "ANG234MISMATCHERR":    0x0004,
+    "ANG1JUMPERR":          0x0008,
+    "ANG234JUMPERR":        0x0010,
+    "ANG1LIMITERR":         0x0020,
+    "ANG234LIMITERR":       0x0040
 }
 
 MovementTypes = [
@@ -84,6 +86,17 @@ MarsSensorDataNumber = {
 
 INVALID_TARGET = 999.0
 CALIB_ANGLE_LIMIT = 50.0
+
+# Workspace boundaries for AROM assessments (meters)
+WORKSPACE_Y_MIN = 0.145  # AP minimum
+WORKSPACE_Y_MAX = 0.765  # AP maximum
+WORKSPACE_Z_MIN = 0.010  # ML minimum
+WORKSPACE_Z_MAX = 0.490  # ML maximum
+WORKSPACE_Y_CENTER = 0.455
+WORKSPACE_Z_CENTER = 0.250
+
+# Distance threshold for trajectory point collection (meters)
+AROM_DIST_THRESHOLD = 0.01
 
 
 def get_name(def_dict: dict[str, int], code: int) -> str | None:

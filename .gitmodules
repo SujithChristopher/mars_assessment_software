@@ -1,0 +1,6 @@
+[submodule "marsfire"]
+	path = marsfire
+	url = https://github.com/siva82kb/marsfire.git
+[submodule "MARS-HOMER"]
+	path = MARS-HOMER
+	url = https://github.com/GokulrajE/MARS-HOMER.git
