@@ -716,13 +716,14 @@ class BaseAssessmentWindow(QMainWindow):
     # Parameter: assessment type (e.g., "AP", "ML", "MLAP")
     assessment_finished = Signal(str)
 
-    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, session_subdir=None, parent=None):
+    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, session_subdir=None, parent=None, limb="RIGHT"):
         super().__init__(parent)
         self.mars = mars
         self.patient_id = patient_id
         self.time_point = time_point
         self.is_demo = is_demo
         self.session_subdir = session_subdir
+        self.limb = limb
         self.state = AromAssessState.INIT
 
         # Trial Management
@@ -740,6 +741,7 @@ class BaseAssessmentWindow(QMainWindow):
 
         # UI
         self.canvas = WorkspaceAssessmentCanvas(self.movement_type, self)
+        self.canvas.limb_type = self.limb
         self.init_ui()
 
         # Connect signals
@@ -839,7 +841,7 @@ class BaseAssessmentWindow(QMainWindow):
     def load_previous_assessment(self):
         """Load most recent assessment of this type (AROM types only)."""
         if self.movement_type in ["AP", "ML", "MLAP"]:
-            self.previous_arom = MarsArom.find_latest_assessment(self.movement_type, patient_id=self.patient_id)
+            self.previous_arom = MarsArom.find_latest_assessment(self.movement_type, patient_id=self.patient_id, limb=self.limb)
             self.canvas.previous_arom = self.previous_arom
         else:
             self.previous_arom = None
@@ -854,7 +856,7 @@ class BaseAssessmentWindow(QMainWindow):
         self.current_trial = 1
 
         # Create new AROM instance
-        self.current_arom = MarsArom(self.movement_type, self.patient_id, self.time_point, self.is_demo)
+        self.current_arom = MarsArom(self.movement_type, self.patient_id, self.time_point, self.is_demo, self.limb)
         self.current_arom.start_assessment()
         self.canvas.current_arom = self.current_arom
 

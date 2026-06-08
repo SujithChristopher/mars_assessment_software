@@ -133,9 +133,9 @@ class PatientEntryWidget(QWidget):
             self.enter_btn.setEnabled(True)
             return
             
-        from app_paths import get_data_dir
-        lock_file = get_data_dir() / patient_id / time_point / ".locked"
-        
+        from app_paths import get_lock_file
+        lock_file = get_lock_file(patient_id, time_point)
+
         if lock_file.exists():
             self.lock_label.setVisible(True)
             self.enter_btn.setEnabled(False)
@@ -172,7 +172,10 @@ class MarsAssessmentLauncher(QMainWindow):
         self.patient_id = None
         self.time_point = "A0"
         self.is_demo = False
-        self.session_subdir = None
+        # Session folder name resolved lazily per (limb, time_point) at launch,
+        # so all assessments of one visit+limb share a folder. See
+        # _resolve_session_subdir().
+        self.session_cache = {}
 
         # Assessment windows
         self.ap_window = None
@@ -342,33 +345,11 @@ class MarsAssessmentLauncher(QMainWindow):
         self.patient_id = patient_id
         self.time_point = time_point
         self.is_demo = is_demo
-        
-        # Determine session subdirectory once
-        from datetime import datetime
-        from app_paths import get_data_dir
-        date_str = datetime.now().strftime("%Y-%m-%d")
-        parent_dir = get_data_dir() / patient_id / time_point
-        
-        # Ensure parent directory exists
-        if not parent_dir.exists():
-            parent_dir.mkdir(parents=True, exist_ok=True)
-            
-        # Auto-increment session number
-        session_num = 1
-        while True:
-            candidate = parent_dir / f"session{session_num}-{date_str}"
-            if not candidate.exists():
-                # We found the first available folder
-                self.session_subdir = f"session{session_num}-{date_str}"
-                break
-            # Only increment if the folder has files inside it
-            if list(candidate.glob("*.csv")):
-                session_num += 1
-            else:
-                self.session_subdir = f"session{session_num}-{date_str}"
-                break
-        
-        print(f"Computed session folder: {self.session_subdir}")
+
+        # Session folder is resolved per-limb at assessment launch (limb is
+        # chosen on this launcher screen, not here). Clear any cached names
+        # from a previous patient/visit.
+        self.session_cache = {}
 
         # Add session info to title
         session_info = f"[Demo Mode]" if is_demo else f"[Patient: {patient_id} | {time_point}]"
@@ -390,8 +371,40 @@ class MarsAssessmentLauncher(QMainWindow):
             self.lock_btn.setToolTip("Finalize and lock this time point for this patient")
 
         print(f"Session started: {session_info}")
-        if self.session_subdir:
-            print(f"Data will be saved to: {self.session_subdir}")
+
+    def _resolve_session_subdir(self, limb: str) -> str:
+        """Resolve (and cache) the session folder name for the current
+        patient + given limb + time point.
+
+        All assessments launched for the same limb during one visit reuse the
+        same ``session<N>-<date>`` folder. The number auto-increments past any
+        existing session folder that already holds CSV files.
+        """
+        key = (limb, self.time_point)
+        if key in self.session_cache:
+            return self.session_cache[key]
+
+        from datetime import datetime
+        from app_paths import get_assessment_dir
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        parent_dir = get_assessment_dir(self.patient_id, limb, self.time_point)
+        parent_dir.mkdir(parents=True, exist_ok=True)
+
+        session_num = 1
+        while True:
+            candidate = parent_dir / f"session{session_num}-{date_str}"
+            if not candidate.exists():
+                subdir = f"session{session_num}-{date_str}"
+                break
+            if list(candidate.glob("*.csv")):
+                session_num += 1
+            else:
+                subdir = f"session{session_num}-{date_str}"
+                break
+
+        self.session_cache[key] = subdir
+        print(f"Resolved session folder for {limb}/{self.time_point}: {subdir}")
+        return subdir
 
     def add_assessment_row(self, assess_type: str, title: str, subtitle: str, callback):
         """Add a row with main button and redo button.
@@ -717,10 +730,10 @@ class MarsAssessmentLauncher(QMainWindow):
             return
 
         if self.ap_window is None or not self.ap_window.isVisible():
-            self.ap_window = AssessmentAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
+            limb = self.limb_combo.currentText()
+            session_subdir = self._resolve_session_subdir(limb)
+            self.ap_window = AssessmentAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, session_subdir, self, limb)
             self.connect_assessment_signals(self.ap_window)
-            # Update canvas limb type
-            self.ap_window.canvas.limb_type = self.limb_combo.currentText()
             self.ap_window.show()
             print("Launched AP assessment window")
 
@@ -732,10 +745,10 @@ class MarsAssessmentLauncher(QMainWindow):
             return
 
         if self.ml_window is None or not self.ml_window.isVisible():
-            self.ml_window = AssessmentMLWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
+            limb = self.limb_combo.currentText()
+            session_subdir = self._resolve_session_subdir(limb)
+            self.ml_window = AssessmentMLWindow(self.mars, self.patient_id, self.time_point, self.is_demo, session_subdir, self, limb)
             self.connect_assessment_signals(self.ml_window)
-            # Update canvas limb type
-            self.ml_window.canvas.limb_type = self.limb_combo.currentText()
             self.ml_window.show()
             print("Launched ML assessment window")
 
@@ -747,10 +760,10 @@ class MarsAssessmentLauncher(QMainWindow):
             return
 
         if self.mlap_window is None or not self.mlap_window.isVisible():
-            self.mlap_window = AssessmentMLAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
+            limb = self.limb_combo.currentText()
+            session_subdir = self._resolve_session_subdir(limb)
+            self.mlap_window = AssessmentMLAPWindow(self.mars, self.patient_id, self.time_point, self.is_demo, session_subdir, self, limb)
             self.connect_assessment_signals(self.mlap_window)
-            # Update canvas limb type
-            self.mlap_window.canvas.limb_type = self.limb_combo.currentText()
             self.mlap_window.show()
             print("Launched MLAP assessment window")
 
@@ -769,7 +782,7 @@ class MarsAssessmentLauncher(QMainWindow):
                                   f"Assessment phase {self.time_point} for patient {self.patient_id} has been locked.")
             # Return to entry screen
             self.patient_id = None
-            self.session_subdir = None
+            self.session_cache = {}
             self.completed_assessments.clear()
             # Reset button styles
             for btn in self.assessment_btns.values():
@@ -781,18 +794,16 @@ class MarsAssessmentLauncher(QMainWindow):
             self.stack.setCurrentWidget(self.entry_widget)
 
     def lock_session(self):
-        """Create a .locked file in the patient/timepoint directory."""
+        """Create the lock marker for this patient's time point (both limbs)."""
         from datetime import datetime
-        from app_paths import get_data_dir
-        lock_dir = get_data_dir() / self.patient_id / self.time_point
-        if not lock_dir.exists():
-            lock_dir.mkdir(parents=True, exist_ok=True)
-        
-        lock_file = lock_dir / ".locked"
+        from app_paths import get_lock_file
+        lock_file = get_lock_file(self.patient_id, self.time_point)
+        lock_file.parent.mkdir(parents=True, exist_ok=True)
+
         with open(lock_file, "w") as f:
             f.write(f"Locked on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        
-        print(f"Locked session: {lock_dir}")
+
+        print(f"Locked session: {lock_file}")
 
     def launch_arm_weight_assessment(self):
         """Launch Arm Weight assessment window."""
@@ -801,18 +812,19 @@ class MarsAssessmentLauncher(QMainWindow):
                               "Please connect to device before starting assessment.")
             return
 
-        # Check if MLAP data exists (required for targets)
+        limb = self.limb_combo.currentText()
+
+        # Check if MLAP data exists (required for targets) for this patient + limb
         from mars_arom_data import MarsArom
-        if MarsArom.find_latest_assessment("MLAP", patient_id=self.patient_id) is None:
+        if MarsArom.find_latest_assessment("MLAP", patient_id=self.patient_id, limb=limb) is None:
             QMessageBox.warning(self, "MLAP Data Required",
-                              "No MLAP assessment found. Arm Weight requires MLAP targets.")
+                              f"No MLAP assessment found for {limb} limb. Arm Weight requires MLAP targets.")
             return
 
         if self.aw_window is None or not self.aw_window.isVisible():
-            self.aw_window = AssessmentArmWeightWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
+            session_subdir = self._resolve_session_subdir(limb)
+            self.aw_window = AssessmentArmWeightWindow(self.mars, self.patient_id, self.time_point, self.is_demo, session_subdir, self, limb)
             self.connect_assessment_signals(self.aw_window)
-            # Update canvas limb type
-            self.aw_window.canvas.limb_type = self.limb_combo.currentText()
             self.aw_window.show()
             print("Launched Arm Weight assessment window")
 
@@ -823,21 +835,22 @@ class MarsAssessmentLauncher(QMainWindow):
                               "Please connect to device before starting assessment.")
             return
 
-        # Check if MLAP data exists (required for targets)
+        limb = self.limb_combo.currentText()
+
+        # Check if MLAP data exists (required for targets) for this patient + limb
         from mars_arom_data import MarsArom
-        if MarsArom.find_latest_assessment("MLAP", patient_id=self.patient_id) is None:
+        if MarsArom.find_latest_assessment("MLAP", patient_id=self.patient_id, limb=limb) is None:
             reply = QMessageBox.question(self, "MLAP Data Required",
-                                       "No MLAP assessment found. Discrete reaching requires MLAP targets.\n\n"
+                                       f"No MLAP assessment found for {limb} limb. Discrete reaching requires MLAP targets.\n\n"
                                        "Do you want to launch it anyway?",
                                        QMessageBox.Yes | QMessageBox.No)
             if reply == QMessageBox.No:
                 return
 
         if self.dr_window is None or not self.dr_window.isVisible():
-            self.dr_window = AssessmentDiscreteReachWindow(self.mars, self.patient_id, self.time_point, self.is_demo, self.session_subdir, self)
+            session_subdir = self._resolve_session_subdir(limb)
+            self.dr_window = AssessmentDiscreteReachWindow(self.mars, self.patient_id, self.time_point, self.is_demo, session_subdir, self, limb)
             self.connect_assessment_signals(self.dr_window)
-            # Update canvas limb type
-            self.dr_window.canvas.limb_type = self.limb_combo.currentText()
             self.dr_window.show()
             print("Launched Discrete Reaching assessment window")
 

@@ -41,7 +41,7 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
         """Assessment type."""
         return "ArmWeight"
 
-    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, session_subdir=None, parent=None):
+    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, session_subdir=None, parent=None, limb="RIGHT"):
         # Arm weight state management
         self.arm_weight_state = ArmWeightState.INACTIVE
         self.arm_weight_data = None
@@ -49,15 +49,15 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
         self.current_target_index = 0
         self.recording_start_time = 0.0
 
-        super().__init__(mars, patient_id, time_point, is_demo, session_subdir, parent)
-        
+        super().__init__(mars, patient_id, time_point, is_demo, session_subdir, parent, limb)
+
         # Override BaseAssessmentWindow initialization for Arm Weight
         self.state = AromAssessState.DONE # Skip AROM part
-        
-        # Load latest MLAP to initialize targets
-        mlap_arom = MarsArom.find_latest_assessment("MLAP", patient_id=self.patient_id)
+
+        # Load latest MLAP to initialize targets (same patient + limb)
+        mlap_arom = MarsArom.find_latest_assessment("MLAP", patient_id=self.patient_id, limb=self.limb)
         if mlap_arom:
-            self.arm_weight_data = ArmWeightData(self.patient_id, self.time_point, self.is_demo)
+            self.arm_weight_data = ArmWeightData(self.patient_id, self.time_point, self.is_demo, self.limb)
             self.arm_weight_data.initialize_from_mlap(mlap_arom)
             self.canvas.arm_weight_targets = self.arm_weight_data.target_positions
             # Keep the MLAP quadrilateral visible for context

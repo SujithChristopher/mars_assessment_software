@@ -19,15 +19,16 @@ class MarsArom:
     Active Range of Motion assessments (AP, ML, or MLAP).
     """
 
-    def __init__(self, movement_type: str, patient_id: str = None, 
-                 time_point: str = "A0", is_demo: bool = False):
+    def __init__(self, movement_type: str, patient_id: str = None,
+                 time_point: str = "A0", is_demo: bool = False, limb: str = "RIGHT"):
         """Initialize MarsArom instance.
-        
+
         Args:
             movement_type: Assessment type - "AP", "ML", or "MLAP"
             patient_id: Homer ID of the patient
-            time_point: Time point (A0, A1, A2)
+            time_point: Time point (Screening, A0, A1, A2)
             is_demo: Whether this is a demo session
+            limb: Assessed limb ("LEFT" or "RIGHT") - part of the save path
         """
         if movement_type not in ["AP", "ML", "MLAP"]:
             raise ValueError(f"Invalid movement type: {movement_type}")
@@ -36,6 +37,7 @@ class MarsArom:
         self.patient_id = patient_id
         self.time_point = time_point
         self.is_demo = is_demo
+        self.limb = limb
         self.timestamp = None
         self.plane_angle = 90.0  # Default training plane angle
 
@@ -296,12 +298,15 @@ class MarsArom:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
-        # Target folder structure: data/<patient_id>/<time_point>/session<N>-<date>/
+        # Target folder structure (see app_paths.get_assessment_dir):
+        #   Screening: <root>/Screening/<patient>/<limb>/session<N>-<date>/
+        #   A0/A1/A2:  <root>/Assessment/<patient>/<limb>/<time_point>/session<N>-<date>/
         date_str = self.timestamp.strftime("%Y-%m-%d")
-        
-        # Build path based on patient_id and time_point
+
+        # Build path based on patient_id, limb and time_point
         if self.patient_id:
-            parent_dir = Path(base_dir) / self.patient_id / self.time_point
+            from app_paths import get_assessment_dir
+            parent_dir = get_assessment_dir(self.patient_id, self.limb, self.time_point)
         else:
             parent_dir = Path(base_dir)
 
@@ -537,13 +542,17 @@ class MarsArom:
         return arom
 
     @staticmethod
-    def find_latest_assessment(movement_type: str, base_dir: str = None, patient_id: str = None) -> 'MarsArom':
+    def find_latest_assessment(movement_type: str, base_dir: str = None,
+                               patient_id: str = None, limb: str = None) -> 'MarsArom':
         """Find and load the most recent assessment of given type.
 
         Args:
             movement_type: Assessment type - "AP", "ML", or "MLAP"
             base_dir: Base directory for data storage (defaults to app data dir)
             patient_id: Optional patient ID to filter by
+            limb: Optional limb ("LEFT"/"RIGHT") to filter by. When given with
+                patient_id, the search spans both Screening and Assessment trees
+                for that patient+limb, across all phases.
 
         Returns:
             MarsArom instance or None if not found
@@ -555,15 +564,27 @@ class MarsArom:
         if not base_path.exists():
             return None
 
-        # Determine search pattern
-        if patient_id:
-            # Look in any time point folder for this patient
-            pattern = f"{patient_id}/*/*/{movement_type.lower()}-*.csv"
+        name = movement_type.lower()
+        # Determine search patterns
+        if patient_id and limb:
+            # patient+limb across any phase, both Screening and Assessment trees
+            patterns = [
+                f"Screening/{patient_id}/{limb}/*/{name}-*.csv",
+                f"Assessment/{patient_id}/{limb}/*/*/{name}-*.csv",
+            ]
+        elif patient_id:
+            # patient across any limb/phase in both trees
+            patterns = [
+                f"Screening/{patient_id}/*/*/{name}-*.csv",
+                f"Assessment/{patient_id}/*/*/*/{name}-*.csv",
+            ]
         else:
-            # Original behavior (recursive search)
-            pattern = f"**/{movement_type.lower()}-*.csv"
-            
-        matching_files = list(base_path.glob(pattern))
+            # Recursive fallback
+            patterns = [f"**/{name}-*.csv"]
+
+        matching_files = []
+        for pattern in patterns:
+            matching_files.extend(base_path.glob(pattern))
 
         # Filter out "raw-" files
         matching_files = [p for p in matching_files if not p.name.startswith("raw-")]

@@ -44,17 +44,20 @@ class ArmWeightData:
     to characterize arm weight support needs.
     """
 
-    def __init__(self, patient_id: str = None, time_point: str = "A0", is_demo: bool = False):
+    def __init__(self, patient_id: str = None, time_point: str = "A0", is_demo: bool = False,
+                 limb: str = "RIGHT"):
         """Initialize arm weight assessment.
-        
+
         Args:
             patient_id: Homer ID of the patient
-            time_point: Time point (A0, A1, A2)
+            time_point: Time point (Screening, A0, A1, A2)
             is_demo: Whether this is a demo session
+            limb: Assessed limb ("LEFT" or "RIGHT") - part of the save path
         """
         self.patient_id = patient_id
         self.time_point = time_point
         self.is_demo = is_demo
+        self.limb = limb
         self.timestamp = None
 
         # Target positions (y, z) in meters - set from MLAP assessment
@@ -187,11 +190,12 @@ class ArmWeightData:
         if self.timestamp is None:
             self.timestamp = datetime.now()
 
-        # Target folder structure: data/<patient_id>/<time_point>/session<N>-<date>/
+        # Target folder structure (see app_paths.get_assessment_dir).
         date_str = self.timestamp.strftime("%Y-%m-%d")
-        
+
         if self.patient_id:
-            parent_dir = Path(base_dir) / self.patient_id / self.time_point
+            from app_paths import get_assessment_dir
+            parent_dir = get_assessment_dir(self.patient_id, self.limb, self.time_point)
         else:
             parent_dir = Path(base_dir)
 

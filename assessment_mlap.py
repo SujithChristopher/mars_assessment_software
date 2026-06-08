@@ -20,8 +20,8 @@ class AssessmentMLAPWindow(BaseAssessmentWindow):
         """Assessment type."""
         return "MLAP"
 
-    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, session_subdir=None, parent=None):
-        super().__init__(mars, patient_id, time_point, is_demo, session_subdir, parent)
+    def __init__(self, mars, patient_id=None, time_point="A0", is_demo=False, session_subdir=None, parent=None, limb="RIGHT"):
+        super().__init__(mars, patient_id, time_point, is_demo, session_subdir, parent, limb)
         # Configure canvas for MLAP-specific visualization
         self.canvas.instruction_text = "MLAP Assessment: Press robot button to begin"
 
