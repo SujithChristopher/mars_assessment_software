@@ -10,6 +10,7 @@ Email: siva82kb@gmail.com, sujiht.christopher52@gmail.com
 """
 
 import sys
+import os
 import time
 import serial.tools.list_ports
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
@@ -18,7 +19,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QStackedWidget, QScrollArea, QRadioButton,
                                QButtonGroup)
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 
 from qtmars import QtMars
 from assessment_ap import AssessmentAPWindow
@@ -26,6 +27,12 @@ from assessment_ml import AssessmentMLWindow
 from assessment_mlap import AssessmentMLAPWindow
 from assessment_armweight import AssessmentArmWeightWindow
 from assessment_discreach import AssessmentDiscreteReachWindow
+
+
+def _resource_path(relative: str) -> str:
+    """Return absolute path — works both in dev and PyInstaller bundle."""
+    base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base, relative)
 
 
 class PatientEntryWidget(QWidget):
@@ -925,9 +932,10 @@ def main():
     """Main application entry point."""
     app = QApplication(sys.argv)
 
-    # Set application-wide font
+    # Set application-wide font and icon
     font = QFont("Segoe UI", 10)
     app.setFont(font)
+    app.setWindowIcon(QIcon(_resource_path('mars_icon.png')))
 
     window = MarsAssessmentLauncher()
     window.show()
