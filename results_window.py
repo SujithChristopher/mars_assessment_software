@@ -6,9 +6,8 @@ recent screening assessment of a given patient + limb. Launched from the
 main launcher's "View Results" button (Screening only).
 """
 
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                               QComboBox, QPushButton, QGroupBox, QGridLayout,
-                               QFrame)
+from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel,
+                               QPushButton, QGroupBox, QGridLayout)
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
@@ -44,18 +43,6 @@ class ResultsWindow(QDialog):
         self.subtitle.setStyleSheet("color: #757575;")
         self.subtitle.setAlignment(Qt.AlignCenter)
         layout.addWidget(self.subtitle)
-
-        # Limb selector (lets the clinician flip between limbs without reopening)
-        limb_row = QHBoxLayout()
-        limb_row.addStretch()
-        limb_row.addWidget(QLabel("Limb:"))
-        self.limb_combo = QComboBox()
-        self.limb_combo.addItems(["RIGHT", "LEFT"])
-        self.limb_combo.setCurrentText(self.limb)
-        self.limb_combo.currentTextChanged.connect(self._on_limb_changed)
-        limb_row.addWidget(self.limb_combo)
-        limb_row.addStretch()
-        layout.addLayout(limb_row)
 
         # Stats cards (populated in refresh)
         self.ap_group = self._make_stat_group("AP  (Anterior-Posterior)")
@@ -95,12 +82,8 @@ class ResultsWindow(QDialog):
 
         return {"box": box, "fields": fields}
 
-    def _on_limb_changed(self, limb: str):
-        self.limb = limb
-        self.refresh()
-
     def refresh(self):
-        """Reload latest AP/ML assessments for current patient + limb."""
+        """Reload latest AP/ML assessments for the configured patient + limb."""
         self.subtitle.setText(f"Patient: {self.patient_id}   |   Limb: {self.limb}")
 
         ap = MarsArom.find_latest_assessment("AP", patient_id=self.patient_id, limb=self.limb)
