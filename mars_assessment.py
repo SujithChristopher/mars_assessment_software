@@ -15,7 +15,8 @@ import serial.tools.list_ports
 from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QPushButton, QLabel, QComboBox,
                                QGroupBox, QMessageBox, QFrame, QLineEdit,
-                               QStackedWidget, QScrollArea)
+                               QStackedWidget, QScrollArea, QRadioButton,
+                               QButtonGroup)
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFont
 
@@ -50,10 +51,47 @@ class PatientEntryWidget(QWidget):
         title_label.setAlignment(Qt.AlignCenter)
         layout.addWidget(title_label)
 
+        # Session Type (radio buttons)
+        session_group = QGroupBox("Session Type")
+        session_layout = QVBoxLayout(session_group)
+
+        radio_row = QHBoxLayout()
+        self.screening_radio = QRadioButton("Screening")
+        self.assessment_radio = QRadioButton("Assessment")
+
+        self._session_btn_group = QButtonGroup(self)
+        self._session_btn_group.setExclusive(True)
+        self._session_btn_group.addButton(self.screening_radio)
+        self._session_btn_group.addButton(self.assessment_radio)
+
+        radio_row.addWidget(self.screening_radio)
+        radio_row.addWidget(self.assessment_radio)
+        radio_row.addStretch()
+        session_layout.addLayout(radio_row)
+
+        # Assessment phase dropdown (only visible when Assessment selected)
+        phase_row = QHBoxLayout()
+        self._phase_label = QLabel("Phase:")
+        self.phase_combo = QComboBox()
+        self.phase_combo.addItems(["A0", "A1", "A2"])
+        self.phase_combo.setMinimumHeight(35)
+        phase_row.addWidget(self._phase_label)
+        phase_row.addWidget(self.phase_combo, 1)
+        session_layout.addLayout(phase_row)
+
+        self._phase_label.setVisible(False)
+        self.phase_combo.setVisible(False)
+
+        layout.addWidget(session_group)
+
+        # Connect radio clicks
+        self._session_btn_group.buttonClicked.connect(self._on_session_type_clicked)
+        self.phase_combo.currentIndexChanged.connect(self.update_lock_status)
+
         # Homer ID Field
         id_group = QGroupBox("Patient Registration")
         id_layout = QVBoxLayout(id_group)
-        
+
         id_input_layout = QHBoxLayout()
         id_input_layout.addWidget(QLabel("HOMER ID / Patient ID:"))
         self.id_input = QLineEdit()
@@ -61,26 +99,15 @@ class PatientEntryWidget(QWidget):
         self.id_input.setMinimumHeight(35)
         self.id_input.textChanged.connect(self.update_lock_status)
         id_input_layout.addWidget(self.id_input)
-        
+
         self.demo_btn = QPushButton("Demo Mode")
         self.demo_btn.setToolTip("Skip registration - data will not be saved")
         self.demo_btn.setFixedWidth(100)
         self.demo_btn.clicked.connect(self.on_demo_clicked)
         id_input_layout.addWidget(self.demo_btn)
-        
+
         id_layout.addLayout(id_input_layout)
         layout.addWidget(id_group)
-
-        # Time Point Selection
-        time_group = QGroupBox("Assessment Phase")
-        time_layout = QHBoxLayout(time_group)
-        time_layout.addWidget(QLabel("Time Point:"))
-        self.time_combo = QComboBox()
-        self.time_combo.addItems(["Screening", "A0", "A1", "A2"])
-        self.time_combo.setMinimumHeight(35)
-        self.time_combo.currentIndexChanged.connect(self.update_lock_status)
-        time_layout.addWidget(self.time_combo, 1)
-        layout.addWidget(time_group)
 
         # Lock Status Label
         self.lock_label = QLabel("⚠️ This time point is LOCKED and cannot be modified.")
@@ -107,6 +134,36 @@ class PatientEntryWidget(QWidget):
 
         layout.addStretch()
 
+    def _on_session_type_clicked(self, button):
+        """Show alert and update UI when user picks Screening or Assessment."""
+        is_screening = (button is self.screening_radio)
+        self._phase_label.setVisible(not is_screening)
+        self.phase_combo.setVisible(not is_screening)
+        self.update_lock_status()
+
+        if is_screening:
+            QMessageBox.information(
+                self, "Screening Selected",
+                "You have selected Screening.\n\n"
+                "Only AP, ML, and MLAP workspace assessments are available.\n"
+                "Arm Weight and Discrete Reaching are not performed at this stage."
+            )
+        else:
+            QMessageBox.information(
+                self, "Assessment Selected",
+                "You have selected Assessment.\n\n"
+                "All assessments are available.\n"
+                "Please choose the assessment phase (A0, A1, or A2) below."
+            )
+
+    def _current_time_point(self):
+        """Return selected time point string, or None if nothing selected."""
+        if self.screening_radio.isChecked():
+            return "Screening"
+        if self.assessment_radio.isChecked():
+            return self.phase_combo.currentText()
+        return None
+
     def on_demo_clicked(self):
         """Handle demo button click."""
         # Use 'demo' as patient_id and 'A0' as default time_point for demo sessions
@@ -115,24 +172,28 @@ class PatientEntryWidget(QWidget):
 
     def on_enter_clicked(self):
         """Handle enter button click."""
+        time_point = self._current_time_point()
+        if time_point is None:
+            QMessageBox.warning(self, "No Session Type", "Please select Screening or Assessment.")
+            return
+
         patient_id = self.id_input.text().strip()
         if not patient_id:
             QMessageBox.warning(self, "Invalid Input", "Please enter a valid HOMER ID or use Demo mode.")
             return
-        
-        time_point = self.time_combo.currentText()
+
         self.entry_complete.emit(patient_id, time_point, False)
 
-    def update_lock_status(self):
+    def update_lock_status(self, _index=None):
         """Check if selected time point is locked."""
         patient_id = self.id_input.text().strip()
-        time_point = self.time_combo.currentText()
-        
-        if not patient_id:
+        time_point = self._current_time_point()
+
+        if not patient_id or time_point is None:
             self.lock_label.setVisible(False)
             self.enter_btn.setEnabled(True)
             return
-            
+
         from app_paths import get_lock_file
         lock_file = get_lock_file(patient_id, time_point)
 
