@@ -27,6 +27,7 @@ from assessment_ml import AssessmentMLWindow
 from assessment_mlap import AssessmentMLAPWindow
 from assessment_armweight import AssessmentArmWeightWindow
 from assessment_discreach import AssessmentDiscreteReachWindow
+from results_window import ResultsWindow
 
 
 def _resource_path(relative: str) -> str:
@@ -385,6 +386,26 @@ class MarsAssessmentLauncher(QMainWindow):
 
         main_layout.addWidget(assess_group)
 
+        # Results Group (Screening only) - view-only stats, no device needed
+        self.results_group = QGroupBox("Results")
+        results_layout = QVBoxLayout(self.results_group)
+        self.view_results_btn = QPushButton("📊  View Results (AP / ML)")
+        self.view_results_btn.setMinimumHeight(45)
+        self.view_results_btn.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                font-weight: bold;
+                font-size: 11pt;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        self.view_results_btn.clicked.connect(self.on_view_results)
+        results_layout.addWidget(self.view_results_btn)
+        main_layout.addWidget(self.results_group)
+
         # Session Finalization Group
         lock_group = QGroupBox("Session Finalization")
         lock_layout = QVBoxLayout(lock_group)
@@ -430,6 +451,9 @@ class MarsAssessmentLauncher(QMainWindow):
         is_screening = (time_point == "Screening")
         for a_type, row in self.assessment_rows.items():
             row.setVisible(not (is_screening and a_type in self.screening_excluded))
+
+        # View Results is a Screening-only feature
+        self.results_group.setVisible(is_screening)
         
         # Disable lock button in demo mode
         self.lock_btn.setEnabled(not is_demo)
@@ -834,6 +858,17 @@ class MarsAssessmentLauncher(QMainWindow):
             self.connect_assessment_signals(self.mlap_window)
             self.mlap_window.show()
             print("Launched MLAP assessment window")
+
+    def on_view_results(self):
+        """Open read-only AROM stats window for current patient + limb (Screening)."""
+        if not self.patient_id or self.is_demo:
+            QMessageBox.information(self, "No Results",
+                                  "Results viewing requires a registered patient.")
+            return
+
+        limb = self.limb_combo.currentText()
+        dlg = ResultsWindow(self.patient_id, limb, self)
+        dlg.exec()
 
     def on_complete_and_lock(self):
         """Ask for confirmation and lock the session."""
