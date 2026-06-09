@@ -407,21 +407,25 @@ class MarsArom:
                 "EndPointZ", "EndPointYPlane", "EndPointZPlane", "EndPointTargetY",
                 "EndPointTargetZ", "Error", "ErrorDiff", "ErrorSum", "GamePlayerX",
                 "GamePlayerY", "GameTargetX", "GameTargetY", "SystemTime",
-                "MoveStates"
+                "MoveStates", "TrialNumber"
             ]
             writer.writerow(headers)
-            
+
             for point in self.raw_trajectory:
                 # point is [y, z, trial_num, raw_row_dict]
+                trial_num = point[2] if len(point) > 2 else ""
                 row_dict = point[3] if len(point) > 3 else {}
-                
-                # Build the row to match the 33 headers
+
+                # Build the row to match the headers
                 out_row = []
                 for header in headers:
+                    if header == "TrialNumber":
+                        out_row.append(str(trial_num))
+                        continue
                     val = row_dict.get(header, "")
                     if isinstance(val, float):
                         # Format floats to reasonable precision, could do .6f or similar
-                        out_row.append(f"{val:.6g}") 
+                        out_row.append(f"{val:.6g}")
                     else:
                         out_row.append(str(val))
                 writer.writerow(out_row)
