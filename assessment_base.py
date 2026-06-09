@@ -963,20 +963,21 @@ class BaseAssessmentWindow(QMainWindow):
             screen_pos = self.canvas.robot_to_screen(y, z)
             print(f"Robot pos: ({y:.3f}, {z:.3f}) → Screen pos: {screen_pos}")
 
-        # If in ASSESSROM state, add to trajectory
+        # If in ASSESSROM state, record data
         if self.state == AromAssessState.ASSESSROM:
-            # Check distance threshold
+            # Save every sample as it arrives - no dropping
+            row_data = self._get_current_raw_data_row(y, z)
+            self.current_arom.add_data_point(y, z, row_data)
+
+            # Canvas trajectory: downsample by distance for drawing only
             if self.last_recorded_pos is None:
-                should_add = True
+                should_draw = True
             else:
                 dy = y - self.last_recorded_pos[0]
                 dz = z - self.last_recorded_pos[1]
-                dist = (dy**2 + dz**2)**0.5
-                should_add = dist >= mdef.AROM_DIST_THRESHOLD
+                should_draw = (dy**2 + dz**2)**0.5 >= mdef.AROM_DIST_THRESHOLD
 
-            if should_add:
-                row_data = self._get_current_raw_data_row(y, z)
-                self.current_arom.add_data_point(y, z, row_data)
+            if should_draw:
                 self.trajectory_points.append([y, z])
                 self.canvas.trajectory = self.trajectory_points
                 self.last_recorded_pos = (y, z)
