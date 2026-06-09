@@ -39,6 +39,20 @@ def get_assessment_dir(patient_id: str, limb: str, time_point: str) -> Path:
     return root / "Assessment" / patient_id / limb / time_point
 
 
+def get_log_dir(patient_id: str = "") -> Path:
+    """Return the log directory, creating it if needed.
+
+    Layout mirrors the assessment tree, rooted under a single ``logs`` folder:
+        With patient:    <root>/logs/<patient_id>/
+        Without patient: <root>/logs/
+    """
+    log_dir = get_data_dir() / "logs"
+    if patient_id:
+        log_dir = log_dir / patient_id
+    log_dir.mkdir(parents=True, exist_ok=True)
+    return log_dir
+
+
 def get_lock_file(patient_id: str, time_point: str) -> Path:
     """Return the lock-marker path for a patient's time point.
 

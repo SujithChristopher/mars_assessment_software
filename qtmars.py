@@ -132,13 +132,8 @@ class QtMars(QObject):
             logger.addHandler(console_handler)
 
             # Setup file handler for continuous CSV logging
-            from app_paths import get_data_dir
-            if self.patient_id:
-                log_dir = get_data_dir() / self.patient_id / "logs"
-            else:
-                log_dir = get_data_dir() / "logs"
-                
-            log_dir.mkdir(parents=True, exist_ok=True)
+            from app_paths import get_log_dir
+            log_dir = get_log_dir(self.patient_id)
             timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             log_file = log_dir / f"mars_log_{timestamp}.csv"
             
