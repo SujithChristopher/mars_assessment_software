@@ -335,7 +335,10 @@ class MarsArom:
         filepath = session_folder / filename
         raw_filepath = session_folder / raw_filename
 
-        # Write Summary CSV (One row per trial + Average + Final Max)
+        # Write Summary CSV. Multi-trial (Assessment) appends AVERAGE + MAXIMUM
+        # rows; single-trial (Screening) has no average/max to report, so only
+        # the one trial row is written.
+        multi_trial = len(self.trial_ranges) > 1
         with open(filepath, 'w', newline='') as f:
             writer = csv.writer(f)
 
@@ -370,25 +373,26 @@ class MarsArom:
                 ]
                 writer.writerow(row)
 
-            # 2. Average row
-            avg_row = [self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + base_common_info + [
-                "AVERAGE", f"{self.ml_average:.6f}", f"{self.ap_average:.6f}",
-                self.average_top[0] if self.average_top else '', self.average_top[1] if self.average_top else '',
-                self.average_bottom[0] if self.average_bottom else '', self.average_bottom[1] if self.average_bottom else '',
-                self.average_left[0] if self.average_left else '', self.average_left[1] if self.average_left else '',
-                self.average_right[0] if self.average_right else '', self.average_right[1] if self.average_right else ''
-            ]
-            writer.writerow(avg_row)
+            if multi_trial:
+                # 2. Average row
+                avg_row = [self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + base_common_info + [
+                    "AVERAGE", f"{self.ml_average:.6f}", f"{self.ap_average:.6f}",
+                    self.average_top[0] if self.average_top else '', self.average_top[1] if self.average_top else '',
+                    self.average_bottom[0] if self.average_bottom else '', self.average_bottom[1] if self.average_bottom else '',
+                    self.average_left[0] if self.average_left else '', self.average_left[1] if self.average_left else '',
+                    self.average_right[0] if self.average_right else '', self.average_right[1] if self.average_right else ''
+                ]
+                writer.writerow(avg_row)
 
-            # 3. Maximum (Cumulative) row
-            max_row = [self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + base_common_info + [
-                "MAXIMUM", f"{self.ml_range:.6f}", f"{self.ap_range:.6f}",
-                self.adjusted_top[0] if self.adjusted_top else '', self.adjusted_top[1] if self.adjusted_top else '',
-                self.adjusted_bottom[0] if self.adjusted_bottom else '', self.adjusted_bottom[1] if self.adjusted_bottom else '',
-                self.adjusted_left[0] if self.adjusted_left else '', self.adjusted_left[1] if self.adjusted_left else '',
-                self.adjusted_right[0] if self.adjusted_right else '', self.adjusted_right[1] if self.adjusted_right else ''
-            ]
-            writer.writerow(max_row)
+                # 3. Maximum (Cumulative) row
+                max_row = [self.timestamp.strftime('%Y-%m-%d %H:%M:%S.%f')] + base_common_info + [
+                    "MAXIMUM", f"{self.ml_range:.6f}", f"{self.ap_range:.6f}",
+                    self.adjusted_top[0] if self.adjusted_top else '', self.adjusted_top[1] if self.adjusted_top else '',
+                    self.adjusted_bottom[0] if self.adjusted_bottom else '', self.adjusted_bottom[1] if self.adjusted_bottom else '',
+                    self.adjusted_left[0] if self.adjusted_left else '', self.adjusted_left[1] if self.adjusted_left else '',
+                    self.adjusted_right[0] if self.adjusted_right else '', self.adjusted_right[1] if self.adjusted_right else ''
+                ]
+                writer.writerow(max_row)
 
         # Write Raw Trajectory CSV
         with open(raw_filepath, 'w', newline='') as f:
@@ -525,6 +529,13 @@ class MarsArom:
                     if corners:
                         arom.adjusted_top, arom.adjusted_bottom, arom.adjusted_left, arom.adjusted_right = corners
                         arom.raw_top, arom.raw_bottom, arom.raw_left, arom.raw_right = corners
+
+            # Single-trial (Screening) files have no MAXIMUM row, so fall back to
+            # the one trial's corners as the adjusted/max boundary.
+            if not arom.adjusted_top and arom.trial_corners_history:
+                c = arom.trial_corners_history[-1]
+                arom.adjusted_top, arom.adjusted_bottom, arom.adjusted_left, arom.adjusted_right = c
+                arom.raw_top, arom.raw_bottom, arom.raw_left, arom.raw_right = c
 
             # Try to load raw trajectory from separate file if it exists
             try:
