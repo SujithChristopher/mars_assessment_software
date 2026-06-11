@@ -55,6 +55,7 @@ class S3SyncManager(QObject):
         self._lock = threading.Lock()   # only one sync in flight at a time
         self._pending = False           # change arrived while a sync was running
         self._state = "idle"
+        self._shutting_down = False     # set on app close; stops emits
 
         if not (self.bucket and self.access_key and self.secret_key):
             self._state = "disabled"
@@ -66,17 +67,36 @@ class S3SyncManager(QObject):
 
     def request_sync(self):
         """Kick a background sync. Coalesces if one is already running."""
-        if not self.enabled:
+        if not self.enabled or self._shutting_down:
             return
         if self._lock.locked():
             self._pending = True
             return
         threading.Thread(target=self._sync_thread, daemon=True).start()
 
+    def shutdown(self):
+        """Signal the manager to stop emitting (call on app close).
+
+        An in-flight upload thread is allowed to finish its current file, but
+        will no longer touch the (possibly deleted) QObject signals.
+        """
+        self._shutting_down = True
+
     # ---- internals ------------------------------------------------------
     def _emit_status(self, state: str, detail: str = ""):
         self._state = state
-        self.status_changed.emit(state, detail)
+        self._safe_emit(self.status_changed, state, detail)
+
+    def _safe_emit(self, signal, *args):
+        """Emit a signal, ignoring failures if the QObject was deleted or we
+        are shutting down (background thread outliving the window on close)."""
+        if self._shutting_down:
+            return
+        try:
+            signal.emit(*args)
+        except RuntimeError:
+            # Underlying C++ QObject already deleted (app closing).
+            pass
 
     def _get_client(self):
         """Create (and cache) the S3 client, resolving the bucket's region."""
@@ -122,6 +142,28 @@ class S3SyncManager(QObject):
         except OSError:
             pass
 
+    @staticmethod
+    def _is_network_error(e: Exception) -> bool:
+        """True if the exception looks like a connectivity failure (no internet)."""
+        import socket
+        from botocore.exceptions import (
+            EndpointConnectionError, ConnectTimeoutError, ReadTimeoutError,
+            ConnectionError as BotoConnectionError,
+        )
+        net_types = (
+            EndpointConnectionError, ConnectTimeoutError, ReadTimeoutError,
+            BotoConnectionError, socket.gaierror, socket.timeout, ConnectionError,
+        )
+        if isinstance(e, net_types):
+            return True
+        # Fallback: match common connectivity phrases in the message.
+        msg = str(e).lower()
+        return any(s in msg for s in (
+            "could not connect", "connection", "timed out", "name resolution",
+            "temporary failure in name resolution", "network is unreachable",
+            "failed to establish", "getaddrinfo",
+        ))
+
     def _iter_files(self):
         for p in self.data_root.rglob("*"):
             if p.is_file() and p.name not in _SKIP_NAMES:
@@ -147,11 +189,10 @@ class S3SyncManager(QObject):
                     changed += 1
                 self._save_manifest(manifest)
                 self._emit_status("synced", f"{changed} uploaded" if changed else "up to date")
-                self.last_sync_changed.emit(datetime.now().strftime("%H:%M"))
+                self._safe_emit(self.last_sync_changed, datetime.now().strftime("%H:%M"))
             except Exception as e:
-                from botocore.exceptions import EndpointConnectionError
-                if isinstance(e, EndpointConnectionError):
-                    self._emit_status("offline", "no network connection")
+                if self._is_network_error(e):
+                    self._emit_status("offline", "No internet connection — will retry automatically.")
                 else:
                     self._emit_status("error", str(e))
 

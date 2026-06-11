@@ -1122,7 +1122,7 @@ class MarsAssessmentLauncher(QMainWindow):
             "idle":     ("#757575", "☁ Sync ready"),
             "syncing":  ("#FF9800", "⟳ Syncing…"),
             "synced":   ("#2e7d32", "☁ Synced"),
-            "offline":  ("#9e9e9e", "☁ Offline"),
+            "offline":  ("#FF9800", "☁ Offline · no internet (will retry)"),
             "error":    ("#c62828", "⚠ Sync error"),
         }
         color, base = styles.get(state, ("#757575", "☁ Sync"))
@@ -1146,8 +1146,12 @@ class MarsAssessmentLauncher(QMainWindow):
     def closeEvent(self, event):
         """Handle window close event."""
         self.disconnect_device()
-        # Final backup attempt before quitting (best effort, non-blocking).
-        self._request_backup()
+        # Stop background sync cleanly so an in-flight upload thread doesn't
+        # emit into a deleted window.
+        if getattr(self, "sync_timer", None):
+            self.sync_timer.stop()
+        if getattr(self, "sync_manager", None):
+            self.sync_manager.shutdown()
         event.accept()
 
 
