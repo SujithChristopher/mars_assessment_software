@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QStackedWidget, QScrollArea, QRadioButton,
                                QButtonGroup, QInputDialog)
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtGui import QFont, QIcon, QValidator
 
 from qtmars import QtMars
 from assessment_ap import AssessmentAPWindow
@@ -34,6 +34,13 @@ def _resource_path(relative: str) -> str:
     """Return absolute path — works both in dev and PyInstaller bundle."""
     base = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, relative)
+
+
+class _UpperCaseValidator(QValidator):
+    """Forces the text of an input field to upper case as the user types."""
+
+    def validate(self, text, pos):
+        return (QValidator.Acceptable, text.upper(), pos)
 
 
 class PatientEntryWidget(QWidget):
@@ -105,6 +112,7 @@ class PatientEntryWidget(QWidget):
         self.id_input = QLineEdit()
         self.id_input.setPlaceholderText("Enter Homer / Patient ID (e.g. HOMER_001)")
         self.id_input.setMinimumHeight(35)
+        self.id_input.setValidator(_UpperCaseValidator())
         self.id_input.textChanged.connect(self.update_lock_status)
         id_input_layout.addWidget(self.id_input)
 
