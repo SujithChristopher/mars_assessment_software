@@ -7,6 +7,7 @@ current working directory is not a reliable place to write.
 Windows-only for now: root is ``%USERPROFILE%\\Documents\\HomerMarsData``.
 """
 
+import json
 from pathlib import Path
 
 APP_DIR_NAME = "HomerMarsData"
@@ -51,6 +52,41 @@ def get_log_dir(patient_id: str = "") -> Path:
         log_dir = log_dir / patient_id
     log_dir.mkdir(parents=True, exist_ok=True)
     return log_dir
+
+
+def get_config_file() -> Path:
+    """Return the path to the application config JSON (in the data root)."""
+    return get_data_dir() / "config.json"
+
+
+def load_config() -> dict:
+    """Load the config dict, returning {} if missing or unreadable."""
+    cfg = get_config_file()
+    if cfg.exists():
+        try:
+            with open(cfg, "r") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return {}
+    return {}
+
+
+def save_config(config: dict) -> None:
+    """Write the config dict to the config JSON."""
+    with open(get_config_file(), "w") as f:
+        json.dump(config, f, indent=2)
+
+
+def get_saved_com_port() -> str | None:
+    """Return the saved COM port, or None if not configured."""
+    return load_config().get("com_port")
+
+
+def set_saved_com_port(port: str) -> None:
+    """Persist the chosen COM port to the config JSON."""
+    config = load_config()
+    config["com_port"] = port
+    save_config(config)
 
 
 def get_lock_file(patient_id: str, time_point: str) -> Path:

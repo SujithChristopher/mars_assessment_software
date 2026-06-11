@@ -17,7 +17,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QPushButton, QLabel, QComboBox,
                                QGroupBox, QMessageBox, QFrame, QLineEdit,
                                QStackedWidget, QScrollArea, QRadioButton,
-                               QButtonGroup)
+                               QButtonGroup, QInputDialog)
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QFont, QIcon
 
@@ -262,8 +262,12 @@ class MarsAssessmentLauncher(QMainWindow):
         # Assessments not available during Screening (only AP and ML allowed)
         self.screening_excluded = {"MLAP", "ArmWeight", "DiscreteReaching"}
 
+        # COM port is persisted in config.json (Documents/HomerMarsData), not
+        # picked from a dropdown each run.
+        from app_paths import get_saved_com_port
+        self.saved_port = get_saved_com_port()
+
         self.init_ui()
-        self.populate_com_ports()
 
     def init_ui(self):
         """Create main window UI with stacked widget."""
@@ -298,28 +302,27 @@ class MarsAssessmentLauncher(QMainWindow):
         conn_group = QGroupBox("Device Connection")
         conn_layout = QVBoxLayout(conn_group)
 
-        # Port selection
+        # Port row: saved port (from config.json) + Change + Connect + status
         port_layout = QHBoxLayout()
         port_layout.addWidget(QLabel("Port:"))
-        self.port_combo = QComboBox()
-        port_layout.addWidget(self.port_combo, 1)
-        self.refresh_ports_btn = QPushButton("⟳")
-        self.refresh_ports_btn.setFixedWidth(40)
-        self.refresh_ports_btn.clicked.connect(self.populate_com_ports)
-        port_layout.addWidget(self.refresh_ports_btn)
-        conn_layout.addLayout(port_layout)
+        self.port_value_label = QLabel(self.saved_port or "Not set")
+        self.port_value_label.setStyleSheet("font-weight: bold;")
+        port_layout.addWidget(self.port_value_label)
 
-        # Connect button and status
-        connect_layout = QHBoxLayout()
+        self.change_port_btn = QPushButton("Change")
+        self.change_port_btn.setFixedWidth(80)
+        self.change_port_btn.clicked.connect(self.on_change_port)
+        port_layout.addWidget(self.change_port_btn)
+
         self.connect_btn = QPushButton("Connect")
         self.connect_btn.clicked.connect(self.toggle_connection)
-        connect_layout.addWidget(self.connect_btn)
+        port_layout.addWidget(self.connect_btn)
 
         self.status_label = QLabel("● Disconnected")
         self.status_label.setStyleSheet("color: #f44336; font-weight: bold;")
-        connect_layout.addWidget(self.status_label)
-        connect_layout.addStretch()
-        conn_layout.addLayout(connect_layout)
+        port_layout.addWidget(self.status_label)
+        port_layout.addStretch()
+        conn_layout.addLayout(port_layout)
 
         main_layout.addWidget(conn_group)
 
@@ -571,15 +574,23 @@ class MarsAssessmentLauncher(QMainWindow):
         if hasattr(window, 'assessment_finished'):
             window.assessment_finished.connect(self.update_assessment_status)
 
-    def populate_com_ports(self):
-        """Populate COM port dropdown with available ports."""
-        self.port_combo.clear()
-        ports = serial.tools.list_ports.comports()
-        for port in ports:
-            self.port_combo.addItem(port.device)
+    def on_change_port(self):
+        """Pick a COM port from detected ports and persist it to config.json."""
+        ports = [p.device for p in serial.tools.list_ports.comports()]
+        if not ports:
+            QMessageBox.warning(self, "No Ports",
+                              "No COM ports detected. Connect the device and try again.")
+            return
 
-        if self.port_combo.count() == 0:
-            self.port_combo.addItem("No ports found")
+        current_idx = ports.index(self.saved_port) if self.saved_port in ports else 0
+        port, ok = QInputDialog.getItem(self, "Select COM Port", "Port:",
+                                        ports, current_idx, False)
+        if ok and port:
+            from app_paths import set_saved_com_port
+            set_saved_com_port(port)
+            self.saved_port = port
+            self.port_value_label.setText(port)
+            print(f"Saved COM port: {port}")
 
     def toggle_connection(self):
         """Toggle device connection."""
@@ -590,11 +601,11 @@ class MarsAssessmentLauncher(QMainWindow):
 
     def connect_device(self):
         """Connect to MARS device."""
-        port = self.port_combo.currentText()
+        port = self.saved_port
 
-        if port == "No ports found":
-            QMessageBox.warning(self, "Connection Error",
-                              "No COM ports available. Please check device connection.")
+        if not port:
+            QMessageBox.warning(self, "No Port Set",
+                              "No COM port configured. Click 'Change' to select one.")
             return
 
         try:
@@ -634,8 +645,7 @@ class MarsAssessmentLauncher(QMainWindow):
             self.connect_btn.setText("Disconnect")
             self.status_label.setText("● Connected")
             self.status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
-            self.port_combo.setEnabled(False)
-            self.refresh_ports_btn.setEnabled(False)
+            self.change_port_btn.setEnabled(False)
 
             # Enable configuration controls
             self.calibrate_btn.setEnabled(True)
@@ -673,8 +683,7 @@ class MarsAssessmentLauncher(QMainWindow):
             self.connect_btn.setText("Connect")
             self.status_label.setText("● Disconnected")
             self.status_label.setStyleSheet("color: #f44336; font-weight: bold;")
-            self.port_combo.setEnabled(True)
-            self.refresh_ports_btn.setEnabled(True)
+            self.change_port_btn.setEnabled(True)
 
             # Disable configuration controls
             self.calibrate_btn.setEnabled(False)
