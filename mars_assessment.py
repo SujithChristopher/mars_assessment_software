@@ -227,6 +227,9 @@ class PatientEntryWidget(QWidget):
 class MarsAssessmentLauncher(QMainWindow):
     """Main launcher window for MARS workspace assessments."""
 
+    # Minimum AP or ML ROM (metres) for a patient to be screening-eligible.
+    ELIGIBILITY_THRESHOLD_M = 0.10  # 10 cm
+
     def __init__(self):
         super().__init__()
         self.mars = None
@@ -392,6 +395,13 @@ class MarsAssessmentLauncher(QMainWindow):
         # Results Group (Screening only) - view-only stats, no device needed
         self.results_group = QGroupBox("Results")
         results_layout = QVBoxLayout(self.results_group)
+
+        # Eligibility banner: ELIGIBLE if AP or ML ROM >= threshold.
+        self.eligibility_label = QLabel("Eligibility: Not Assessed")
+        self.eligibility_label.setAlignment(Qt.AlignCenter)
+        results_layout.addWidget(self.eligibility_label)
+        self._set_eligibility("Eligibility: Not Assessed", "#757575")
+
         self.view_results_btn = QPushButton("📊  View Results (AP / ML)")
         self.view_results_btn.setMinimumHeight(45)
         self.view_results_btn.setStyleSheet("""
@@ -455,8 +465,10 @@ class MarsAssessmentLauncher(QMainWindow):
         for a_type, row in self.assessment_rows.items():
             row.setVisible(not (is_screening and a_type in self.screening_excluded))
 
-        # View Results is a Screening-only feature
+        # View Results + eligibility are Screening-only features
         self.results_group.setVisible(is_screening)
+        if is_screening:
+            self.update_eligibility_status()
         
         # Disable lock button in demo mode
         self.lock_btn.setEnabled(not is_demo)
@@ -544,6 +556,10 @@ class MarsAssessmentLauncher(QMainWindow):
         """
         print(f"Updating status for: {assess_type}")
         self.completed_assessments.add(assess_type)
+
+        # AP/ML completion can change screening eligibility.
+        if assess_type in ("AP", "ML"):
+            self.update_eligibility_status()
         
         if assess_type in self.assessment_btns:
             btn = self.assessment_btns[assess_type]
@@ -719,6 +735,10 @@ class MarsAssessmentLauncher(QMainWindow):
                 QMessageBox.warning(self, "Command Error",
                                   f"Failed to set limb: {str(e)}")
 
+        # Eligibility is per-limb; refresh when the limb changes.
+        if self.results_group.isVisible():
+            self.update_eligibility_status()
+
     def update_angle_display(self):
         """Update real-time angle display."""
         if self.mars and self.mars.is_connected() and self.mars.is_data_available():
@@ -878,6 +898,43 @@ class MarsAssessmentLauncher(QMainWindow):
         limb = self.limb_combo.currentText()
         dlg = ResultsWindow(self.patient_id, limb, self)
         dlg.exec()
+
+    def _set_eligibility(self, text: str, color: str, bg: str = "transparent"):
+        """Style the eligibility banner."""
+        self.eligibility_label.setText(text)
+        self.eligibility_label.setStyleSheet(
+            f"font-weight: bold; font-size: 12pt; color: {color}; "
+            f"background-color: {bg}; padding: 6px; border-radius: 4px;")
+
+    def update_eligibility_status(self):
+        """Refresh the screening eligibility banner for current patient + limb.
+
+        ELIGIBLE if AP ROM >= threshold OR ML ROM >= threshold (one axis is
+        enough). NOT ELIGIBLE only when both AP and ML are assessed and neither
+        qualifies. Otherwise (nothing assessed, or only a failing single axis)
+        shows Not Assessed.
+        """
+        if not hasattr(self, "eligibility_label"):
+            return
+
+        if self.is_demo or not self.patient_id:
+            self._set_eligibility("Eligibility: Not Assessed", "#757575")
+            return
+
+        from mars_arom_data import MarsArom
+        limb = self.limb_combo.currentText()
+        ap = MarsArom.find_latest_assessment("AP", patient_id=self.patient_id, limb=limb)
+        ml = MarsArom.find_latest_assessment("ML", patient_id=self.patient_id, limb=limb)
+
+        ap_ok = ap is not None and ap.ap_range >= self.ELIGIBILITY_THRESHOLD_M
+        ml_ok = ml is not None and ml.ml_range >= self.ELIGIBILITY_THRESHOLD_M
+
+        if ap_ok or ml_ok:
+            self._set_eligibility("Eligibility: ELIGIBLE ✓", "#2e7d32", bg="#e8f5e9")
+        elif ap is not None and ml is not None:
+            self._set_eligibility("Eligibility: NOT ELIGIBLE ✗", "#c62828", bg="#ffebee")
+        else:
+            self._set_eligibility("Eligibility: Not Assessed", "#757575")
 
     def on_complete_and_lock(self):
         """Ask for confirmation and lock the session."""
