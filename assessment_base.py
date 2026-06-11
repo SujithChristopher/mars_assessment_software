@@ -48,6 +48,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         # UI state
         self.state = AromAssessState.INIT
         self.current_trial = 1
+        self.max_trials = 3  # set by owning window; 1 for Screening
         self.instruction_text = "Press robot button to begin"
         self.show_grid = False
         self.countdown_timer = None # None or int/float
@@ -448,9 +449,11 @@ class WorkspaceAssessmentCanvas(QWidget):
         if self.current_arom is None:
             return
 
-        # Panel dimensions and position
+        # Panel dimensions and position. Single-trial (Screening) shows one
+        # row only, so the panel is shorter.
+        single_trial = (getattr(self, "max_trials", 3) == 1)
         panel_width = 240
-        panel_height = 160
+        panel_height = 110 if single_trial else 160
         margin = 20
         x = self.width() - panel_width - margin
         y = (self.height() - panel_height) // 2
@@ -497,12 +500,16 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         row_y = y + 70
         spacing = 50
-        
-        # Current (Blue)
-        draw_stat_group(f"Current Trial ({self.current_trial})", ml_trial, ap_trial, QColor(0, 100, 220), row_y)
-        
-        # Average (Red)
-        draw_stat_group("Average (All Trials)", ml_avg, ap_avg, QColor(220, 0, 0), row_y + spacing)
+
+        if single_trial:
+            # One trial only: a single "Range" row, no average.
+            draw_stat_group("Range", ml_trial, ap_trial, QColor(0, 100, 220), row_y)
+        else:
+            # Current (Blue)
+            draw_stat_group(f"Current Trial ({self.current_trial})", ml_trial, ap_trial, QColor(0, 100, 220), row_y)
+
+            # Average (Red)
+            draw_stat_group("Average (All Trials)", ml_avg, ap_avg, QColor(220, 0, 0), row_y + spacing)
 
     def _draw_arm_weight_targets(self, painter):
         """Draw arm weight target boxes.
@@ -726,9 +733,9 @@ class BaseAssessmentWindow(QMainWindow):
         self.limb = limb
         self.state = AromAssessState.INIT
 
-        # Trial Management
+        # Trial Management: Screening uses 1 trial, Assessment uses 3.
         self.current_trial = 1
-        self.max_trials = 3
+        self.max_trials = 1 if self.time_point == "Screening" else 3
 
         # Data
         self.current_arom = None
@@ -742,6 +749,7 @@ class BaseAssessmentWindow(QMainWindow):
         # UI
         self.canvas = WorkspaceAssessmentCanvas(self.movement_type, self)
         self.canvas.limb_type = self.limb
+        self.canvas.max_trials = self.max_trials
         self.init_ui()
 
         # Connect signals

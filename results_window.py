@@ -65,10 +65,9 @@ class ResultsWindow(QDialog):
         grid.setColumnStretch(1, 1)
 
         fields = {}
+        # Screening is a single trial, so there is no average/maximum to show.
         rows = [
-            ("trials", "Trials:"),
-            ("avg", "Average Range:"),
-            ("max", "Maximum Range:"),
+            ("range", "Range:"),
             ("date", "Assessed:"),
         ]
         for r, (key, label) in enumerate(rows):
@@ -101,17 +100,13 @@ class ResultsWindow(QDialog):
                 v.setStyleSheet("color: #f44336;")
             return
 
-        n_trials = len(arom.trial_ranges)
+        # Single-trial screening: report the one recorded range for this axis.
         if axis == "ap":
-            avg_m = arom.average_ap_range
-            max_m = arom.ap_range
+            range_m = arom.trial_ranges[0][1] if arom.trial_ranges else arom.ap_range
         else:
-            avg_m = arom.average_ml_range
-            max_m = arom.ml_range
+            range_m = arom.trial_ranges[0][0] if arom.trial_ranges else arom.ml_range
 
-        fields["trials"].setText(str(n_trials))
-        fields["avg"].setText(f"{avg_m * 100:.1f} cm")
-        fields["max"].setText(f"{max_m * 100:.1f} cm")
+        fields["range"].setText(f"{range_m * 100:.1f} cm")
         fields["date"].setText(arom.timestamp.strftime("%Y-%m-%d %H:%M"))
         for v in fields.values():
             v.setStyleSheet("color: #2e7d32;")

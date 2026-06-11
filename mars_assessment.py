@@ -153,8 +153,8 @@ class PatientEntryWidget(QWidget):
             QMessageBox.information(
                 self, "Screening Selected",
                 "You have selected Screening.\n\n"
-                "Only AP, ML, and MLAP workspace assessments are available.\n"
-                "Arm Weight and Discrete Reaching are not performed at this stage."
+                "Only AP and ML workspace assessments are available (1 trial each).\n"
+                "MLAP, Arm Weight and Discrete Reaching are not performed at this stage."
             )
         else:
             QMessageBox.information(
@@ -259,8 +259,8 @@ class MarsAssessmentLauncher(QMainWindow):
         self.redo_btns = {}       # type -> QPushButton (redo)
         self.assessment_rows = {} # type -> QWidget (row container)
 
-        # Assessments not available during Screening
-        self.screening_excluded = {"ArmWeight", "DiscreteReaching"}
+        # Assessments not available during Screening (only AP and ML allowed)
+        self.screening_excluded = {"MLAP", "ArmWeight", "DiscreteReaching"}
 
         self.init_ui()
         self.populate_com_ports()
