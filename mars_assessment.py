@@ -118,7 +118,7 @@ class PatientEntryWidget(QWidget):
         layout.addWidget(id_group)
 
         # Lock Status Label
-        self.lock_label = QLabel("⚠️ This time point is LOCKED and cannot be modified.")
+        self.lock_label = QLabel("⚠️ This time point is LOCKED. You can view results but cannot modify data.")
         self.lock_label.setStyleSheet("color: #f44336; font-weight: bold; margin-bottom: 5px;")
         self.lock_label.setAlignment(Qt.AlignCenter)
         self.lock_label.setVisible(False)
@@ -197,31 +197,47 @@ class PatientEntryWidget(QWidget):
         patient_id = self.id_input.text().strip()
         time_point = self._current_time_point()
 
+        green_style = """
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                font-size: 11pt;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """
+
         if not patient_id or time_point is None:
             self.lock_label.setVisible(False)
             self.enter_btn.setEnabled(True)
+            self.enter_btn.setText("Enter Launcher")
+            self.enter_btn.setStyleSheet(green_style)
             return
 
         from app_paths import get_lock_file
         lock_file = get_lock_file(patient_id, time_point)
 
         if lock_file.exists():
+            # Locked: still allow entry, but only to view results (read-only).
             self.lock_label.setVisible(True)
-            self.enter_btn.setEnabled(False)
-            self.enter_btn.setStyleSheet("background-color: #cccccc; color: grey;")
-        else:
-            self.lock_label.setVisible(False)
             self.enter_btn.setEnabled(True)
+            self.enter_btn.setText("View Results (Locked) →")
             self.enter_btn.setStyleSheet("""
                 QPushButton {
-                    background-color: #4CAF50;
+                    background-color: #2196F3;
                     color: white;
                     font-size: 11pt;
                 }
                 QPushButton:hover {
-                    background-color: #45a049;
+                    background-color: #1976D2;
                 }
             """)
+        else:
+            self.lock_label.setVisible(False)
+            self.enter_btn.setEnabled(True)
+            self.enter_btn.setText("Enter Launcher")
+            self.enter_btn.setStyleSheet(green_style)
 
 
 class MarsAssessmentLauncher(QMainWindow):
@@ -327,6 +343,7 @@ class MarsAssessmentLauncher(QMainWindow):
         port_layout.addStretch()
         conn_layout.addLayout(port_layout)
 
+        self.conn_group = conn_group
         main_layout.addWidget(conn_group)
 
         # Configuration Group
@@ -368,6 +385,7 @@ class MarsAssessmentLauncher(QMainWindow):
         self.angle_display_label.setAlignment(Qt.AlignCenter)
         config_layout.addWidget(self.angle_display_label)
 
+        self.config_group = config_group
         main_layout.addWidget(config_group)
 
         # Workspace Assessments Group
@@ -390,6 +408,7 @@ class MarsAssessmentLauncher(QMainWindow):
         # Discrete Reaching Assessment Row
         self.add_assessment_row("DiscreteReaching", "⊕  Assess Discrete Reaching", "(Home to 75% workspace targets)", self.launch_discrete_reach_assessment)
 
+        self.assess_group = assess_group
         main_layout.addWidget(assess_group)
 
         # Results Group (Screening only) - view-only stats, no device needed
@@ -439,6 +458,7 @@ class MarsAssessmentLauncher(QMainWindow):
         self.lock_btn.clicked.connect(self.on_complete_and_lock)
         lock_layout.addWidget(self.lock_btn)
         
+        self.lock_group = lock_group
         main_layout.addWidget(lock_group)
         main_layout.addStretch()
 
@@ -453,10 +473,19 @@ class MarsAssessmentLauncher(QMainWindow):
         # from a previous patient/visit.
         self.session_cache = {}
 
+        # A locked time point is entered in read-only (view results) mode.
+        from app_paths import get_lock_file
+        is_locked = (not is_demo) and get_lock_file(patient_id, time_point).exists()
+        self.is_locked = is_locked
+
         # Add session info to title
-        session_info = f"[Demo Mode]" if is_demo else f"[Patient: {patient_id} | {time_point}]"
+        if is_demo:
+            session_info = "[Demo Mode]"
+        else:
+            lock_tag = " [LOCKED - View Only]" if is_locked else ""
+            session_info = f"[Patient: {patient_id} | {time_point}]{lock_tag}"
         self.setWindowTitle(f"MARS Assessment Launcher {session_info}")
-        
+
         # Switch to launcher scene
         self.stack.setCurrentWidget(self.launcher_scroll)
 
@@ -465,19 +494,35 @@ class MarsAssessmentLauncher(QMainWindow):
         for a_type, row in self.assessment_rows.items():
             row.setVisible(not (is_screening and a_type in self.screening_excluded))
 
-        # View Results + eligibility are Screening-only features
-        self.results_group.setVisible(is_screening)
-        if is_screening:
+        # Results + eligibility: a Screening feature, and also kept available for
+        # any locked session so results stay viewable after locking.
+        show_results = is_screening or is_locked
+        self.results_group.setVisible(show_results)
+        if show_results:
             self.update_eligibility_status()
-        
-        # Disable lock button in demo mode
-        self.lock_btn.setEnabled(not is_demo)
+
+        # Locked sessions are read-only: hide device/assessment/finalize controls.
+        self._set_view_only(is_locked)
+
+        # Lock button: enabled only for a live (not demo, not already locked) session.
+        self.lock_btn.setEnabled(not is_demo and not is_locked)
         if is_demo:
             self.lock_btn.setToolTip("Locking is disabled in Demo Mode")
         else:
             self.lock_btn.setToolTip("Finalize and lock this time point for this patient")
 
         print(f"Session started: {session_info}")
+
+    def _set_view_only(self, locked: bool):
+        """Toggle read-only mode for a locked session.
+
+        Hides the connection, assessment and finalization groups so results can
+        be viewed after a time point has been locked. The configuration group is
+        kept visible because its limb selector is needed to pick which limb's
+        results to view (its device buttons stay disabled while disconnected).
+        """
+        for grp in (self.conn_group, self.assess_group, self.lock_group):
+            grp.setVisible(not locked)
 
     def _resolve_session_subdir(self, limb: str) -> str:
         """Resolve (and cache) the session folder name for the current
