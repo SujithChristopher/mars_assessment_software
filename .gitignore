@@ -93,3 +93,4 @@ logs/
 output/
 .claude
 CLAUDE.md
+.env

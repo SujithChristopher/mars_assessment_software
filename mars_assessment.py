@@ -28,6 +28,7 @@ from assessment_mlap import AssessmentMLAPWindow
 from assessment_armweight import AssessmentArmWeightWindow
 from assessment_discreach import AssessmentDiscreteReachWindow
 from results_window import ResultsWindow
+from s3_sync import S3SyncManager
 
 
 def _resource_path(relative: str) -> str:
@@ -296,6 +297,22 @@ class MarsAssessmentLauncher(QMainWindow):
 
         self.init_ui()
 
+        # S3 backup sync: upload-only, runs in the background. Triggered by
+        # save points (assessment finished, session locked) and a periodic
+        # reconcile timer.
+        self._last_sync_time = None
+        self.sync_manager = S3SyncManager(self)
+        self.sync_manager.status_changed.connect(self._on_sync_status)
+        self.sync_manager.last_sync_changed.connect(self._on_last_sync)
+        if self.sync_manager.enabled:
+            self.sync_timer = QTimer(self)
+            self.sync_timer.timeout.connect(self.sync_manager.request_sync)
+            self.sync_timer.start(60000)  # reconcile every 60 s
+            self._on_sync_status("idle", "")
+            self.sync_manager.request_sync()  # initial backup
+        else:
+            self._on_sync_status("disabled", "no credentials in .env")
+
     def init_ui(self):
         """Create main window UI with stacked widget."""
         self.setWindowTitle("MARS Workspace Assessment System")
@@ -350,6 +367,18 @@ class MarsAssessmentLauncher(QMainWindow):
         port_layout.addWidget(self.status_label)
         port_layout.addStretch()
         conn_layout.addLayout(port_layout)
+
+        # Cloud backup status row
+        sync_layout = QHBoxLayout()
+        self.sync_status_label = QLabel("☁ Sync: initializing…")
+        self.sync_status_label.setStyleSheet("color: #757575;")
+        sync_layout.addWidget(self.sync_status_label)
+        self.sync_now_btn = QPushButton("Sync now")
+        self.sync_now_btn.setFixedWidth(90)
+        self.sync_now_btn.clicked.connect(self.on_sync_now)
+        sync_layout.addWidget(self.sync_now_btn)
+        sync_layout.addStretch()
+        conn_layout.addLayout(sync_layout)
 
         self.conn_group = conn_group
         main_layout.addWidget(conn_group)
@@ -613,6 +642,9 @@ class MarsAssessmentLauncher(QMainWindow):
         # AP/ML completion can change screening eligibility.
         if assess_type in ("AP", "ML"):
             self.update_eligibility_status()
+
+        # New assessment data on disk -> back it up.
+        self._request_backup()
         
         if assess_type in self.assessment_btns:
             btn = self.assessment_btns[assess_type]
@@ -1027,6 +1059,9 @@ class MarsAssessmentLauncher(QMainWindow):
 
         print(f"Locked session: {lock_file}")
 
+        # Lock marker is part of the data -> back it up.
+        self._request_backup()
+
     def launch_arm_weight_assessment(self):
         """Launch Arm Weight assessment window."""
         if not self.mars or not self.mars.is_connected():
@@ -1076,9 +1111,43 @@ class MarsAssessmentLauncher(QMainWindow):
             self.dr_window.show()
             print("Launched Discrete Reaching assessment window")
 
+    def on_sync_now(self):
+        """Manual trigger for an immediate background backup."""
+        self.sync_manager.request_sync()
+
+    def _on_sync_status(self, state: str, detail: str):
+        """Update the cloud-sync status chip."""
+        styles = {
+            "disabled": ("#9e9e9e", "☁ Sync off"),
+            "idle":     ("#757575", "☁ Sync ready"),
+            "syncing":  ("#FF9800", "⟳ Syncing…"),
+            "synced":   ("#2e7d32", "☁ Synced"),
+            "offline":  ("#9e9e9e", "☁ Offline"),
+            "error":    ("#c62828", "⚠ Sync error"),
+        }
+        color, base = styles.get(state, ("#757575", "☁ Sync"))
+        if state == "synced" and self._last_sync_time:
+            base = f"☁ Synced · {self._last_sync_time}"
+        self.sync_status_label.setText(base)
+        self.sync_status_label.setStyleSheet(f"color: {color}; font-weight: bold;")
+        self.sync_status_label.setToolTip(detail or "")
+        self.sync_now_btn.setEnabled(state not in ("syncing", "disabled"))
+
+    def _on_last_sync(self, t: str):
+        """Record last successful sync time and refresh the chip."""
+        self._last_sync_time = t
+        self._on_sync_status("synced", "")
+
+    def _request_backup(self):
+        """Trigger a backup sync if the sync manager is active."""
+        if getattr(self, "sync_manager", None) and self.sync_manager.enabled:
+            self.sync_manager.request_sync()
+
     def closeEvent(self, event):
         """Handle window close event."""
         self.disconnect_device()
+        # Final backup attempt before quitting (best effort, non-blocking).
+        self._request_backup()
         event.accept()
 
 

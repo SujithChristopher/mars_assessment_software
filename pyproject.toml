@@ -5,7 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "boto3>=1.43.27",
     "pyinstaller>=6.19.0",
     "pyserial>=3.5",
     "pyside6>=6.10.2",
+    "python-dotenv>=1.2.2",
 ]
