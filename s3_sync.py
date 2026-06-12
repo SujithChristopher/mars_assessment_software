@@ -177,13 +177,17 @@ class S3SyncManager(QObject):
                 client = self._get_client()
                 manifest = self._load_manifest()
                 changed = 0
+                root_name = self.data_root.name  # "HomerMarsData"
                 for path in self._iter_files():
                     rel = path.relative_to(self.data_root).as_posix()
                     st = path.stat()
                     sig = [st.st_size, int(st.st_mtime)]
                     if manifest.get(rel) == sig:
                         continue  # unchanged since last upload
-                    key = f"{self.prefix}/{rel}" if self.prefix else rel
+                    # Keep the data-root folder inside the prefix:
+                    # s3://<bucket>/<prefix>/HomerMarsData/<rel>
+                    rel_key = f"{root_name}/{rel}"
+                    key = f"{self.prefix}/{rel_key}" if self.prefix else rel_key
                     client.upload_file(str(path), self.bucket, key)
                     manifest[rel] = sig
                     changed += 1
