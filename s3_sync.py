@@ -39,8 +39,12 @@ class S3SyncManager(QObject):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        import sys
         from dotenv import load_dotenv
-        load_dotenv()
+        # When frozen (PyInstaller), the bundled .env lives in the temp
+        # extraction dir (sys._MEIPASS); in dev it sits next to this file.
+        base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+        load_dotenv(os.path.join(base, ".env"))
 
         self.bucket = os.environ.get("AWS_S3_BUCKET", "").strip()
         self.prefix = os.environ.get("AWS_S3_PREFIX", "").strip().strip("/")
