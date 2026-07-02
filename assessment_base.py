@@ -64,6 +64,8 @@ class WorkspaceAssessmentCanvas(QWidget):
         self.discrete_reach_state = None # DiscreteReachState enum value
         self.current_discrete_reach_target = None # Currently active target
         self.completed_discrete_targets = set() # Set of completed target values
+        self.dr_targets_total = 0        # Total peak targets in the sequence
+        self.dr_targets_remaining = 0    # Targets left (includes one in progress)
 
     def robot_to_screen(self, y: float, z: float) -> tuple:
         """Convert robot coordinates (meters) to screen coordinates (pixels).
@@ -195,6 +197,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         if self.discrete_reach_state is not None and len(self.discrete_reach_targets) > 0:
             # self._draw_discrete_reach_paths(painter)
             self._draw_discrete_reach_targets(painter)
+            self._draw_discrete_reach_count(painter)
 
         # Current position cursor (green circle)
         if self.current_pos is not None:
@@ -659,6 +662,43 @@ class WorkspaceAssessmentCanvas(QWidget):
             painter.drawRect(int(screen_pos[0] - half_size),
                            int(screen_pos[1] - half_size),
                            int(size), int(size))
+
+    def _draw_discrete_reach_count(self, painter):
+        """Draw a small top-right panel with the number of targets remaining."""
+        total = getattr(self, "dr_targets_total", 0)
+        if total <= 0:
+            return
+        remaining = getattr(self, "dr_targets_remaining", total)
+        done = total - remaining
+
+        panel_w = 190
+        panel_h = 100
+        margin = 20
+        x = self.width() - panel_w - margin
+        y = margin + 60  # sit below the centered instruction pill
+
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setBrush(QBrush(QColor(255, 255, 255, 220)))
+        painter.setPen(QPen(QColor(200, 200, 200, 150), 1))
+        painter.drawRoundedRect(x, y, panel_w, panel_h, 12, 12)
+
+        # Title
+        painter.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        painter.setPen(QPen(QColor(50, 50, 50)))
+        painter.drawText(x + 15, y + 28, "TARGETS")
+        painter.setPen(QPen(QColor(220, 220, 220), 1))
+        painter.drawLine(x + 15, y + 38, x + panel_w - 15, y + 38)
+
+        # Big remaining number
+        painter.setFont(QFont("Segoe UI", 24, QFont.Bold))
+        painter.setPen(QPen(QColor(0, 100, 220)))
+        painter.drawText(x + 15, y + 78, str(remaining))
+
+        # Caption
+        painter.setFont(QFont("Segoe UI", 10, QFont.Medium))
+        painter.setPen(QPen(QColor(120, 120, 120)))
+        painter.drawText(x + 60, y + 65, f"remaining / {total}")
+        painter.drawText(x + 60, y + 83, f"done: {done}")
 
     def _draw_discrete_reach_paths(self, painter):
         """Draw dashed lines from Home to each peak target."""

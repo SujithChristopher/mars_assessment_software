@@ -41,6 +41,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
     TRIGGER_STAY_TIME = 1.0  # stay in target for 1s to trigger
     POST_TARGET_DELAY_MS = 500  # ms before returning to home
     FINAL_HOME_DELAY_MS = 500  # ms before final home reach
+    TARGET_TIMEOUT = 8.0  # seconds to reach a peak target before auto-advancing
 
 
     @property
@@ -54,6 +55,8 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         self.current_peak_index = 0
         self.holding_start_time = 0.0
         self.stay_in_target_start_time = 0.0
+        self.reach_start_time = 0.0  # clock for the 8s peak-target reach timeout
+        self.timed_out_targets = set()  # (index, target) pairs that timed out
         self.target_trial_counts = {t: 0 for t in DiscreteReachTarget}
         self.last_tracked_target = DiscreteReachTarget.NONE
 
@@ -99,10 +102,14 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         ] * 3
         random.shuffle(base_sequence)
         self.peak_sequence = base_sequence
-        
+        self.reach_start_time = 0.0
+        self.timed_out_targets = set()
+
         self.canvas.discrete_reach_state = self.dr_state
         self.canvas.completed_discrete_targets = set()
         self.canvas.dr_is_in_target = False  # Track if currently within radius
+        self.canvas.dr_targets_total = len(self.peak_sequence)
+        self.canvas.dr_targets_remaining = len(self.peak_sequence)
         
         # UI configuration
         self.recalibrate_btn.setVisible(False)
@@ -122,8 +129,11 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         if self.dr_state == DiscreteReachState.INACTIVE or self.mars is None:
             return
 
+        # Keep the side-panel count in sync (includes the target in progress).
+        self.canvas.dr_targets_remaining = max(0, len(self.peak_sequence) - self.current_peak_index)
+
         _, y, z = self.mars.ep_pos_in_plane
-        
+
         if self.dr_state == DiscreteReachState.MOVING_TO_HOME:
             home_pos = self.dr_data.target_positions[DiscreteReachTarget.HOME]
             if self._is_at_pos(y, z, home_pos):
@@ -148,15 +158,28 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         elif self.dr_state == DiscreteReachState.MOVING_TO_TARGET:
             target = self.peak_sequence[self.current_peak_index]
             target_pos = self.dr_data.target_positions[target]
-            if self._is_at_pos(y, z, target_pos):
+            at_pos = self._is_at_pos(y, z, target_pos)
+
+            # Start the reach clock on first frame in this state.
+            if self.reach_start_time == 0:
+                self.reach_start_time = time.time()
+
+            # 8s timeout applies only while still outside the target (reaching
+            # phase). Once inside, the patient is allowed to finish the 1s stay.
+            if not at_pos and time.time() - self.reach_start_time >= self.TARGET_TIMEOUT:
+                self._handle_target_timeout()
+                return
+
+            if at_pos:
                 self.canvas.dr_is_in_target = True
                 if self.stay_in_target_start_time == 0:
                     self.stay_in_target_start_time = time.time()
-                
+
                 elapsed = time.time() - self.stay_in_target_start_time
                 if elapsed >= self.TRIGGER_STAY_TIME:
                     self.dr_state = DiscreteReachState.HOLD_STABILIZING
                     self.stay_in_target_start_time = 0.0
+                    self.reach_start_time = 0.0  # reached in time; clear reach clock
                     self.canvas.discrete_reach_state = self.dr_state
                     self.canvas.dr_is_in_target = False  # Handled by HOLD state
                 else:
@@ -267,9 +290,53 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         dz = abs(z - target_pos[1])
         return dy < self.TARGET_TOLERANCE and dz < self.TARGET_TOLERANCE
 
+    def _handle_target_timeout(self):
+        """Peak target not reached within TARGET_TIMEOUT: drop it, tag the data,
+        and return to Home before presenting the next target.
+
+        Reuses the normal post-hold flow (TARGET_COMPLETE -> Home -> next), but
+        the target is recorded as a timeout instead of a completed reach.
+        """
+        target = self.peak_sequence[self.current_peak_index]
+        print(f"[DR] TIMEOUT on {target.name} "
+              f"({self.current_peak_index + 1}/{len(self.peak_sequence)})")
+
+        self.reach_start_time = 0.0
+        self.stay_in_target_start_time = 0.0
+        self.canvas.dr_is_in_target = False
+        self.canvas.countdown_timer = None
+        self.timed_out_targets.add((self.current_peak_index, target))
+
+        # Explicit TIMEOUT_<TARGET> marker row so analysis can separate reached
+        # from missed targets.
+        if self.mars is not None and self.dr_data is not None:
+            _, y, z = self.mars.ep_pos_in_plane
+            row = self._get_current_raw_data_row(
+                y, z,
+                game_state=self.dr_state.value,
+                state_name=f"TIMEOUT_{target.name}"
+            )
+            row["Target"] = target.name
+            row["Trial_Number"] = self.target_trial_counts.get(target, "")
+            self.dr_data.add_raw_data_point(row)
+            self.dr_data.add_summary_point(row)
+
+        target_name = self._get_display_target_name(target)
+        self.dr_state = DiscreteReachState.TARGET_COMPLETE
+        self.canvas.discrete_reach_state = self.dr_state
+
+        if self.current_peak_index + 1 >= len(self.peak_sequence):
+            # Last target timed out: still return Home once to finish the loop.
+            self.canvas.instruction_text = f"{target_name} timed out. Return to Home to finish."
+            QTimer.singleShot(self.FINAL_HOME_DELAY_MS, self.transition_to_final_home)
+        else:
+            self.canvas.instruction_text = f"{target_name} timed out. Return to Home."
+            QTimer.singleShot(self.POST_TARGET_DELAY_MS, self.auto_transition_after_hold)
+
     def transition_to_final_home(self):
         """Transition back to Home after the last peak target."""
         self.current_peak_index = len(self.peak_sequence) # Signal we are done with peaks
+        self.reach_start_time = 0.0
         self.dr_state = DiscreteReachState.MOVING_TO_HOME
         self.canvas.discrete_reach_state = self.dr_state
         self.canvas.current_discrete_reach_target = DiscreteReachTarget.HOME
@@ -278,6 +345,7 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
     def auto_transition_after_hold(self):
         """Advance to next target in sequence."""
         self.current_peak_index += 1
+        self.reach_start_time = 0.0
         self.dr_state = DiscreteReachState.MOVING_TO_HOME
         self.canvas.discrete_reach_state = self.dr_state
         self.canvas.current_discrete_reach_target = DiscreteReachTarget.HOME
