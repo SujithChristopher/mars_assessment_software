@@ -89,6 +89,34 @@ def set_saved_com_port(port: str) -> None:
     save_config(config)
 
 
+ASSESSMENT_SUMMARY_FILENAMES = {
+    "AP": "ap-rom.csv",
+    "ML": "ml-rom.csv",
+    "MLAP": "mlap-rom.csv",
+    "ArmWeight": "armweight.csv",
+    "DiscreteReaching": "discrete-reach.csv",
+}
+
+
+def get_completed_assessment_types(patient_id: str, time_point: str) -> set:
+    """Return which assessment types have a saved summary CSV for this
+    patient_id + time_point, checking both limbs.
+
+    Limb is a robot configuration, not a patient attribute, so a completed
+    assessment file under either limb's directory counts as "done".
+    """
+    completed = set()
+    for assess_type, filename in ASSESSMENT_SUMMARY_FILENAMES.items():
+        for limb in ("LEFT", "RIGHT"):
+            parent_dir = get_assessment_dir(patient_id, limb, time_point)
+            if not parent_dir.exists():
+                continue
+            if any(parent_dir.glob(f"session*/{filename}")):
+                completed.add(assess_type)
+                break
+    return completed
+
+
 def get_lock_file(patient_id: str, time_point: str) -> Path:
     """Return the lock-marker path for a patient's time point.
 

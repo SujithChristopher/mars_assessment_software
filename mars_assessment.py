@@ -133,6 +133,14 @@ class PatientEntryWidget(QWidget):
         self.lock_label.setVisible(False)
         layout.addWidget(self.lock_label)
 
+        # Progress Status Label (existing patient with partial/complete data)
+        self.progress_label = QLabel("")
+        self.progress_label.setStyleSheet("color: #2e7d32; font-weight: bold;")
+        self.progress_label.setAlignment(Qt.AlignCenter)
+        self.progress_label.setWordWrap(True)
+        self.progress_label.setVisible(False)
+        layout.addWidget(self.progress_label)
+
         # Enter Button
         self.enter_btn = QPushButton("Enter Launcher")
         self.enter_btn.setMinimumHeight(45)
@@ -219,6 +227,7 @@ class PatientEntryWidget(QWidget):
 
         if not patient_id or time_point is None:
             self.lock_label.setVisible(False)
+            self.progress_label.setVisible(False)
             self.enter_btn.setEnabled(True)
             self.enter_btn.setText("Enter Launcher")
             self.enter_btn.setStyleSheet(green_style)
@@ -230,6 +239,7 @@ class PatientEntryWidget(QWidget):
         if lock_file.exists():
             # Locked: still allow entry, but only to view results (read-only).
             self.lock_label.setVisible(True)
+            self.progress_label.setVisible(False)
             self.enter_btn.setEnabled(True)
             self.enter_btn.setText("View Results (Locked) →")
             self.enter_btn.setStyleSheet("""
@@ -247,6 +257,27 @@ class PatientEntryWidget(QWidget):
             self.enter_btn.setEnabled(True)
             self.enter_btn.setText("Enter Launcher")
             self.enter_btn.setStyleSheet(green_style)
+            self._update_progress_status(patient_id, time_point)
+
+    def _update_progress_status(self, patient_id: str, time_point: str):
+        """Show existing-patient progress (partial/complete) for this time point."""
+        required = {"Screening": {"AP", "ML"}}.get(
+            time_point, {"AP", "ML", "MLAP", "ArmWeight", "DiscreteReaching"})
+
+        from app_paths import get_completed_assessment_types
+        done = get_completed_assessment_types(patient_id, time_point) & required
+        n, total = len(done), len(required)
+
+        if n == 0:
+            self.progress_label.setVisible(False)
+        elif n < total:
+            self.progress_label.setText(
+                f"Existing patient — {n}/{total} assessments done for {time_point}")
+            self.progress_label.setVisible(True)
+        else:
+            self.progress_label.setText(
+                f"All {total} assessments complete for {time_point} — remember to lock")
+            self.progress_label.setVisible(True)
 
 
 class MarsAssessmentLauncher(QMainWindow):
