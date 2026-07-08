@@ -93,13 +93,13 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
         self.dr_state = DiscreteReachState.INIT
         self.current_peak_index = 0
         
-        # Generate randomized sequence of 15 targets (5 of each)
+        # Generate randomized sequence of 12 targets (4 of each)
         import random
         base_sequence = [
             DiscreteReachTarget.TOP,
             DiscreteReachTarget.LEFT,
             DiscreteReachTarget.RIGHT
-        ] * 3
+        ] * 4
         random.shuffle(base_sequence)
         self.peak_sequence = base_sequence
         self.reach_start_time = 0.0
