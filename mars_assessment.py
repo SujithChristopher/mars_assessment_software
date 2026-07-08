@@ -17,8 +17,8 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QPushButton, QLabel, QComboBox,
                                QGroupBox, QMessageBox, QFrame, QLineEdit,
                                QStackedWidget, QScrollArea, QRadioButton,
-                               QButtonGroup, QInputDialog)
-from PySide6.QtCore import Qt, QTimer, Signal
+                               QButtonGroup, QInputDialog, QCompleter)
+from PySide6.QtCore import Qt, QTimer, Signal, QStringListModel
 from PySide6.QtGui import QFont, QIcon, QValidator
 
 from qtmars import QtMars
@@ -117,6 +117,17 @@ class PatientEntryWidget(QWidget):
         self.id_input.textChanged.connect(self.update_lock_status)
         id_input_layout.addWidget(self.id_input)
 
+        # Live patient-ID autocomplete: narrows to known IDs starting with
+        # what's typed, via a dropdown. Typing an ID that isn't in the list
+        # is still accepted (creates a new patient).
+        self._id_completer_model = QStringListModel(self)
+        self._id_completer = QCompleter(self._id_completer_model, self)
+        self._id_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._id_completer.setFilterMode(Qt.MatchStartsWith)
+        self._id_completer.setCompletionMode(QCompleter.PopupCompletion)
+        self.id_input.setCompleter(self._id_completer)
+        self.refresh_patient_id_list()
+
         self.demo_btn = QPushButton("Demo Mode")
         self.demo_btn.setToolTip("Skip registration - data will not be saved")
         self.demo_btn.setFixedWidth(100)
@@ -158,6 +169,17 @@ class PatientEntryWidget(QWidget):
         layout.addWidget(self.enter_btn)
 
         layout.addStretch()
+
+    def refresh_patient_id_list(self):
+        """Reload known patient IDs into the autocomplete dropdown."""
+        from app_paths import get_all_patient_ids
+        self._id_completer_model.setStringList(get_all_patient_ids())
+
+    def showEvent(self, event):
+        """Refresh the patient ID list each time this screen becomes visible,
+        so IDs created in earlier sessions this run show up too."""
+        super().showEvent(event)
+        self.refresh_patient_id_list()
 
     def _on_session_type_clicked(self, button):
         """Show alert and update UI when user picks Screening or Assessment."""

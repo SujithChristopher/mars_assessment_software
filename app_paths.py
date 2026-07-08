@@ -89,6 +89,21 @@ def set_saved_com_port(port: str) -> None:
     save_config(config)
 
 
+def get_all_patient_ids() -> list:
+    """Return all known patient IDs found under the Screening and Assessment
+    trees, sorted alphabetically. Used to populate the patient ID autocomplete
+    on the entry screen.
+    """
+    root = get_data_dir()
+    ids = set()
+    for tree in ("Screening", "Assessment"):
+        tree_dir = root / tree
+        if not tree_dir.exists():
+            continue
+        ids.update(p.name for p in tree_dir.iterdir() if p.is_dir())
+    return sorted(ids)
+
+
 ASSESSMENT_SUMMARY_FILENAMES = {
     "AP": "ap-rom.csv",
     "ML": "ml-rom.csv",
