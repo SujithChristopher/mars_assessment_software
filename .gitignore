@@ -94,3 +94,4 @@ output/
 .claude
 CLAUDE.md
 .env
+/graphify-out/

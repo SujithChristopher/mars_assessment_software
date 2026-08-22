@@ -251,7 +251,8 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                         # Final home hold complete
                         self.dr_state = DiscreteReachState.ALL_DONE
                         self.canvas.discrete_reach_state = self.dr_state
-                        self.canvas.instruction_text = "Assessment finished! Click 'Complete Assessment' to save."
+                        self.canvas.instruction_text = "Assessment finished! Save the result or redo the assessment."
+                        self.redo_btn.setVisible(True)
                         self.save_btn.setVisible(True)
                         print("Discrete Reaching assessment finished.")
                     else:
@@ -419,6 +420,49 @@ class AssessmentDiscreteReachWindow(BaseAssessmentWindow):
                 row_dict["Trial_Number"] = self.target_trial_counts.get(target, "")
             self.dr_data.add_raw_data_point(row_dict)
             self.dr_data.add_summary_point(row_dict)
+
+    def redo_assessment(self):
+        """Discard discrete-reach samples and return to the initial prompt."""
+        mlap_arom = self.canvas.current_arom
+        if mlap_arom is None:
+            mlap_arom = MarsArom.find_latest_assessment(
+                "MLAP", patient_id=self.patient_id, limb=self.limb
+            )
+        if mlap_arom is None:
+            return
+
+        self.dr_data = DiscreteReachData(
+            self.patient_id, self.time_point, self.is_demo, self.limb
+        )
+        self.dr_data.initialize_from_mlap(mlap_arom)
+
+        self.state = AromAssessState.INIT
+        self.dr_state = DiscreteReachState.INACTIVE
+        self.current_peak_index = 0
+        self.peak_sequence = []
+        self.holding_start_time = 0.0
+        self.stay_in_target_start_time = 0.0
+        self.reach_start_time = 0.0
+        self.timed_out_targets = set()
+        self.target_trial_counts = {t: 0 for t in DiscreteReachTarget}
+        self.last_tracked_target = DiscreteReachTarget.NONE
+
+        self.canvas.state = self.state
+        self.canvas.current_arom = mlap_arom
+        self.canvas.discrete_reach_targets = self.dr_data.target_positions
+        self.canvas.discrete_reach_state = self.dr_state
+        self.canvas.current_discrete_reach_target = DiscreteReachTarget.NONE
+        self.canvas.completed_discrete_targets = set()
+        self.canvas.dr_is_in_target = False
+        self.canvas.dr_targets_total = 0
+        self.canvas.dr_targets_remaining = 0
+        self.canvas.countdown_timer = None
+        self.canvas.instruction_text = "Discrete Reaching: Press robot button to begin"
+
+        self.start_btn.setVisible(False)
+        self.redo_btn.setVisible(False)
+        self.save_btn.setVisible(False)
+        print("Discrete reaching assessment reset for redo")
 
     def _get_display_target_name(self, target: DiscreteReachTarget) -> str:
         """Get the correctly mirrored target name for UI instructions."""

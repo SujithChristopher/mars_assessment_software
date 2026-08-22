@@ -15,6 +15,7 @@ from PySide6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QPainter, QPen, QBrush, QColor, QFont
 import marsdefs as mdef
+from display_units import format_centimeters
 from mars_arom_data import MarsArom
 
 
@@ -493,11 +494,14 @@ class WorkspaceAssessmentCanvas(QWidget):
             painter.setFont(font_value)
             painter.setPen(QPen(color))
             if self.movement_type == "AP":
-                text = f"{ap:.3f} m"
+                text = format_centimeters(ap)
             elif self.movement_type == "ML":
-                text = f"{ml:.3f} m"
+                text = format_centimeters(ml)
             else: # MLAP
-                text = f"ML: {ml:.3f}, AP: {ap:.3f} m"
+                text = (
+                    f"ML: {format_centimeters(ml)}, "
+                    f"AP: {format_centimeters(ap)}"
+                )
             
             painter.drawText(x + 15, top + 20, text)
 
@@ -836,6 +840,13 @@ class BaseAssessmentWindow(QMainWindow):
         self.recalibrate_btn.setVisible(False)
         button_layout.addWidget(self.recalibrate_btn)
 
+        self.redo_btn = QPushButton("Redo Assessment")
+        self.redo_btn.setObjectName("redoButton")
+        self.redo_btn.setToolTip("Discard this unsaved result and run the assessment again")
+        self.redo_btn.clicked.connect(self.redo_assessment)
+        self.redo_btn.setVisible(False)
+        button_layout.addWidget(self.redo_btn)
+
         self.save_btn = QPushButton("Save & Close")
         self.save_btn.clicked.connect(self.save_assessment)
         self.save_btn.setVisible(False)
@@ -866,6 +877,15 @@ class BaseAssessmentWindow(QMainWindow):
             }
             QPushButton:disabled {
                 background-color: #BDBDBD;
+            }
+            QPushButton#redoButton {
+                background-color: #FF9800;
+            }
+            QPushButton#redoButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton#redoButton:pressed {
+                background-color: #E65100;
             }
         """)
 
@@ -985,9 +1005,10 @@ class BaseAssessmentWindow(QMainWindow):
         # Update state
         self.state = AromAssessState.DONE
         self.canvas.state = self.state
-        self.canvas.instruction_text = "Assessment complete. Click 'Save & Close' to finish."
+        self.canvas.instruction_text = "Assessment complete. Save the result or click 'Redo Assessment' to try again."
 
         # Update buttons
+        self.redo_btn.setVisible(True)
         self.save_btn.setVisible(True)
 
         print(f"Stopped {self.movement_type} assessment - final results displayed")
@@ -1129,7 +1150,9 @@ class BaseAssessmentWindow(QMainWindow):
     def on_recalibrate(self):
         """Reset to INIT state for new assessment."""
         self.state = AromAssessState.INIT
+        self.current_trial = 1
         self.canvas.state = self.state
+        self.canvas.current_trial = self.current_trial
         self.canvas.instruction_text = "Press robot button to begin"
 
         # Clear current data
@@ -1137,11 +1160,21 @@ class BaseAssessmentWindow(QMainWindow):
         self.canvas.current_arom = None
         self.trajectory_points = []
         self.canvas.trajectory = []
+        self.last_recorded_pos = None
+        self.canvas.countdown_timer = None
 
         # Update buttons
         self.start_btn.setVisible(True)
         self.recalibrate_btn.setVisible(False)
+        self.redo_btn.setVisible(False)
         self.save_btn.setVisible(False)
+
+    def redo_assessment(self):
+        """Discard the unsaved result and return to the device-button start state."""
+        self.on_recalibrate()
+        # Workspace assessments are started with the robot button, not the
+        # legacy on-screen Start button.
+        self.start_btn.setVisible(False)
 
     def save_assessment(self):
         """Save assessment and close window."""

@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QGridLayout, QPushButton,
                                QLineEdit, QGroupBox, QComboBox, QSlider, QMessageBox)
 from PySide6.QtCore import Qt, QTimer
+from display_units import meters_to_centimeters
 from qtmars import QtMars
 import time
 
@@ -176,7 +177,7 @@ class MarsDisplayWindow(QMainWindow):
         data_layout.addWidget(status_group, 2, 0)
 
         # Endpoint Position
-        ep_group = QGroupBox("Endpoint Position (meters)")
+        ep_group = QGroupBox("Endpoint Position (cm)")
         ep_layout = QGridLayout(ep_group)
         ep_params = ["ep_x", "ep_y", "ep_z"]
         for i, param in enumerate(ep_params):
@@ -465,9 +466,9 @@ class MarsDisplayWindow(QMainWindow):
 
             # Update endpoint position
             ep_x, ep_y, ep_z = self.mars.ep_pos
-            self.value_labels["ep_x"].setText(f"{ep_x:.4f}")
-            self.value_labels["ep_y"].setText(f"{ep_y:.4f}")
-            self.value_labels["ep_z"].setText(f"{ep_z:.4f}")
+            self.value_labels["ep_x"].setText(f"{meters_to_centimeters(ep_x):.2f}")
+            self.value_labels["ep_y"].setText(f"{meters_to_centimeters(ep_y):.2f}")
+            self.value_labels["ep_z"].setText(f"{meters_to_centimeters(ep_z):.2f}")
 
             # Update error status
             error_code = self.mars.error

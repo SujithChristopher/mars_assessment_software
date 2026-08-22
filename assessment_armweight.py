@@ -196,7 +196,8 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
             # All targets complete
             self.arm_weight_state = ArmWeightState.ALL_DONE
             self.canvas.arm_weight_state = self.arm_weight_state
-            self.canvas.instruction_text = "Arm weight assessment complete! Click 'Complete Arm Weight' to save."
+            self.canvas.instruction_text = "Arm weight assessment complete! Save the result or redo the assessment."
+            self.redo_btn.setVisible(True)
             self.save_btn.setVisible(True)
             print("All arm weight targets complete!")
         else:
@@ -272,6 +273,39 @@ class AssessmentArmWeightWindow(BaseAssessmentWindow):
                     state_name=self.arm_weight_state.name
                 )
             self.arm_weight_data.add_raw_data_point(row_dict)
+
+    def redo_assessment(self):
+        """Discard arm-weight samples and restart from the first target."""
+        mlap_arom = self.canvas.current_arom
+        if mlap_arom is None:
+            mlap_arom = MarsArom.find_latest_assessment(
+                "MLAP", patient_id=self.patient_id, limb=self.limb
+            )
+        if mlap_arom is None:
+            return
+
+        self.arm_weight_data = ArmWeightData(
+            self.patient_id, self.time_point, self.is_demo, self.limb
+        )
+        self.arm_weight_data.initialize_from_mlap(mlap_arom)
+        self.arm_weight_data.start_assessment()
+
+        self.arm_weight_state = ArmWeightState.INIT
+        self.current_target = ArmWeightTarget.NONE
+        self.current_target_index = 0
+        self.recording_start_time = 0.0
+
+        self.canvas.current_arom = mlap_arom
+        self.canvas.arm_weight_targets = self.arm_weight_data.target_positions
+        self.canvas.arm_weight_state = self.arm_weight_state
+        self.canvas.current_arm_weight_target = ArmWeightTarget.NONE
+        self.canvas.completed_targets = set()
+        self.canvas.countdown_timer = None
+        self.canvas.instruction_text = "Arm Weight Assessment: Press robot button to begin"
+
+        self.redo_btn.setVisible(False)
+        self.save_btn.setVisible(False)
+        print("Arm weight assessment reset for redo")
 
     def save_arm_weight_and_close(self):
         """Save arm weight data and close window."""

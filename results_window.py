@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel,
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 
+from display_units import format_centimeters
 from mars_arom_data import MarsArom
 
 
@@ -106,7 +107,7 @@ class ResultsWindow(QDialog):
         else:
             range_m = arom.trial_ranges[0][0] if arom.trial_ranges else arom.ml_range
 
-        fields["range"].setText(f"{range_m * 100:.1f} cm")
+        fields["range"].setText(format_centimeters(range_m))
         fields["date"].setText(arom.timestamp.strftime("%Y-%m-%d %H:%M"))
         for v in fields.values():
             v.setStyleSheet("color: #2e7d32;")
