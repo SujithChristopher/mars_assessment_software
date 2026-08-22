@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                                QHBoxLayout, QLabel, QGridLayout, QPushButton,
                                QLineEdit, QGroupBox, QComboBox, QSlider, QMessageBox)
 from PySide6.QtCore import Qt, QTimer
+from calibration_messages import calibration_failure_message
 from display_units import meters_to_centimeters
 from qtmars import QtMars
 import time
@@ -380,8 +381,14 @@ class MarsDisplayWindow(QMainWindow):
             if getattr(self.mars, 'calibration', 0) == 1:
                 QMessageBox.information(self, "Calibration Complete", "Device successfully calibrated.")
             else:
-                QMessageBox.warning(self, "Calibration Pending", 
-                                  "Device not calibrated yet. Please ensure device is still and angles are close to 0.")
+                QMessageBox.warning(
+                    self,
+                    "Calibration Pending",
+                    calibration_failure_message(
+                        self.mars,
+                        "Device not calibrated yet. Please ensure device is still and angles are close to 0.",
+                    ),
+                )
 
     def on_slider_value_changed(self, value):
         """Update position target display when slider changes."""

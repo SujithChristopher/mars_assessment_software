@@ -27,6 +27,7 @@ from assessment_ml import AssessmentMLWindow
 from assessment_mlap import AssessmentMLAPWindow
 from assessment_armweight import AssessmentArmWeightWindow
 from assessment_discreach import AssessmentDiscreteReachWindow
+from calibration_messages import calibration_failure_message
 from results_window import ResultsWindow
 from s3_sync import S3SyncManager
 
@@ -929,7 +930,10 @@ class MarsAssessmentLauncher(QMainWindow):
                 self.calib_status_label.setText("Calibration Successful ✓")
                 self.calib_status_label.setStyleSheet("color: #4CAF50; font-weight: bold;")
             else:
-                self.calib_status_label.setText("Calibration Failed. Keep still & retry.")
+                self.calib_status_label.setText(calibration_failure_message(
+                    self.mars,
+                    "Calibration Failed. Keep still & retry.",
+                ))
                 self.calib_status_label.setStyleSheet("color: #f44336; font-weight: bold;")
 
 
