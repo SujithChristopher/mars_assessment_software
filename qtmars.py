@@ -74,6 +74,7 @@ class QtMars(QObject):
         self._deltimes = []
         self._time_diffs = [] # Store recent time differences
         self._framerate = 0.0
+        self._low_framerate_start: Optional[datetime] = None  # when framerate first dropped below safety threshold
         # Version and device name
         self._version = ""
         self._devname = ""
@@ -541,15 +542,31 @@ class QtMars(QObject):
 
         self._preverrstatus = self.error
         # self._logger.info(f"Frame Rate: {self._framerate:.1f}Hz | Time: {self._runtime:.2f}")
-        # Frame rate warning
-        if self._framerate < MIN_FRAMERATE_WARNING and self._framerate > 0:
+        # Frame rate warning and safety check
+        if self._framerate > 0 and self._framerate < MIN_FRAMERATE_WARNING:
             self._logger.warning(f"Frame Rate Low | Frame Rate: {self._framerate:.1f}Hz | Time: {self._runtime:.2f}")
 
-            # Safety: disable control if frame rate too low
+            # Safety: disable control only if below safety threshold for 5 continuous seconds
             if self._framerate < MIN_FRAMERATE_SAFETY:
-                if self.controltype != mdef.ControlTypes.get("NONE", 0):
-                    self._logger.info("Frame rate too low. Setting control to NONE.")
-                    self.set_control_type("NONE")
+                if self._low_framerate_start is None:
+                    self._low_framerate_start = datetime.now()
+                    self._logger.warning(f"Frame rate below {MIN_FRAMERATE_SAFETY}Hz — starting 5s safety timer.")
+                else:
+                    elapsed = (datetime.now() - self._low_framerate_start).total_seconds()
+                    if elapsed >= 5.0:
+                        if self.controltype != mdef.ControlTypes.get("NONE", 0):
+                            self._logger.info(f"Frame rate below {MIN_FRAMERATE_SAFETY}Hz for {elapsed:.1f}s. Setting control to NONE.")
+                            self.set_control_type("NONE")
+            else:
+                # Above safety threshold — reset timer
+                if self._low_framerate_start is not None:
+                    self._logger.info("Frame rate recovered above safety threshold. Resetting safety timer.")
+                self._low_framerate_start = None
+        else:
+            # Framerate is fine — reset timer
+            if self._low_framerate_start is not None:
+                self._logger.info("Frame rate recovered. Resetting safety timer.")
+            self._low_framerate_start = None
 
         # Check button state changes
         if len(self.prevstatedata) > 3:
