@@ -10,12 +10,22 @@ import struct
 import serial
 from serial import SerialException
 import enum
+import logging
 import sys
+import threading
 import time
 from PySide6.QtCore import (Signal, QThread)
 
 _INDEBUG = False
 _OUTDEBUG = False
+
+# Heartbeat command byte (mdef.InDataType["HEARTBEAT"]). Kept as a literal here
+# so the protocol layer stays independent of the MARS definitions module.
+_HEARTBEAT_BYTE = 0x80
+
+# Child of the 'QtMars' logger so these lines land in the same CSV log file when
+# QtPluto has configured its handlers, and stay silent when qtjedi is used alone.
+_logger = logging.getLogger('QtMars.jedi')
 
 class JediParsingStates(enum.Enum):
     LookingForHeader = 0
@@ -30,7 +40,8 @@ class JediComm(QThread):
 
     newdata_signal = Signal(list)
 
-    def __init__(self, port: str | None = None, baudrate: int = 115200) -> None:
+    def __init__(self, port: str | None = None, baudrate: int = 115200,
+                 heartbeat_interval: float = 1.0, tick_interval: float = 5.0) -> None:
         super().__init__()
         self._port = port
         self._baudrate = baudrate
@@ -48,6 +59,22 @@ class JediComm(QThread):
         self._abort = False
         self._pausing = False
         # self.setDaemon(False)
+
+        # Heartbeat is sent from this thread rather than from a QTimer so that a
+        # blocked/slow Qt main thread cannot stall it. The firmware disables motor
+        # control (setControlType(NONE)) as soon as MAX_HBEAT_INTERVAL (5.0s)
+        # elapses without one. Set to 0 to disable.
+        self._heartbeat_interval = heartbeat_interval
+        self._last_hb = 0.0
+        # Periodic liveness probe. Distinguishes "this thread stopped running"
+        # (process freeze) from "this thread is running but no bytes arrive"
+        # (dead link). Set to 0 to disable.
+        self._tick_interval = tick_interval
+        self._last_tick = 0.0
+        self._pktcount = 0
+        self._hbcount = 0
+        # Both this thread and the caller's thread write to the port.
+        self._write_lock = threading.Lock()
     
     @property
     def sleeping(self):
@@ -68,7 +95,52 @@ class JediComm(QThread):
             sys.stdout.write(f"\n [{time.time():6.3f}] [{len(_outpayload)}] Out data: ")
             for _elem in _outpayload:
                 sys.stdout.write(f"{_elem} ")
-        self._ser.write(bytearray(_outpayload))
+        # Serialise writes: the reader thread sends heartbeats while the caller's
+        # thread sends commands, and a frame must not be split by another frame.
+        with self._write_lock:
+            self._ser.write(bytearray(_outpayload))
+
+    def _send_heartbeat_if_due(self, now: float):
+        """
+        Send a heartbeat if the heartbeat interval has elapsed.
+
+        Runs on the reader thread so that it keeps going even when the Qt main
+        thread is blocked or when no data is arriving from the device.
+        """
+        if self._heartbeat_interval <= 0:
+            return
+        if now - self._last_hb < self._heartbeat_interval:
+            return
+        self._last_hb = now
+        try:
+            self.send_message([_HEARTBEAT_BYTE])
+            self._hbcount += 1
+        except (SerialException, OSError) as err:
+            # Never let a write failure kill the reader thread.
+            _logger.warning(f"Heartbeat send failed: {err}")
+
+    def _log_tick_if_due(self, now: float):
+        """
+        Log a periodic liveness line for the reader thread.
+
+        A gap in these lines means the thread (or the whole process) stopped
+        running. Lines that continue with in_waiting=0 and a flat packet count
+        mean the thread is alive but the device is not sending anything.
+        """
+        if self._tick_interval <= 0:
+            return
+        if now - self._last_tick < self._tick_interval:
+            return
+        self._last_tick = now
+        try:
+            _waiting = self._ser.in_waiting
+        except (SerialException, OSError) as err:
+            _waiting = -1
+            _logger.warning(f"Port read failed during tick: {err}")
+        _logger.info(
+            f"Jedi alive | in_waiting: {_waiting} | packets: {self._pktcount} "
+            f"| heartbeats: {self._hbcount}"
+        )
 
     def run(self):
         """
@@ -76,6 +148,11 @@ class JediComm(QThread):
         """
         self._state = JediParsingStates.LookingForHeader
         while self._ser.is_open and not self._abort:
+            _now = time.time()
+            # Heartbeat and tick come before the pause check on purpose: pausing
+            # the parser must not let the firmware time out and cut motor control.
+            self._send_heartbeat_if_due(_now)
+            self._log_tick_if_due(_now)
             if self._pausing:
                 self.msleep(100)
                 continue
@@ -174,6 +251,7 @@ class JediComm(QThread):
                             # print("Full packet received.")
                             pass
                             
+                        self._pktcount += 1
                         self.newdata_signal.emit(self._in_payload)
                         self._state = JediParsingStates.LookingForHeader
         except SerialException:

@@ -38,8 +38,19 @@ LOW_HIGH_ARM_WEIGHT_ERROR_THRESHOLD = 0.5  # Threshold for arm weight range chec
 MIN_FRAMERATE_WARNING = 60  # Warn if below this
 MIN_FRAMERATE_SAFETY = 20  # Disable control if below this
 
-# Heartbeat interval (in milliseconds)
-HEARTBEAT_INTERVAL_MS = 5000  # Send heartbeat every 2 seconds (firmware expects within 5 seconds)
+# Heartbeat interval (in milliseconds) for the optional QTimer-based heartbeat.
+# NOTE: this runs on the Qt main thread and stops whenever that thread is busy.
+# The primary heartbeat now lives in JediComm's reader thread; see
+# HEARTBEAT_INTERVAL_S below.
+HEARTBEAT_INTERVAL_MS = 2000  # Firmware cuts control after 5s without a heartbeat
+
+# Heartbeat interval (seconds) for the reader-thread heartbeat in JediComm.
+# Firmware MAX_HBEAT_INTERVAL is 5.0s, so this leaves a 5x margin.
+HEARTBEAT_INTERVAL_S = 1.0
+
+# Interval (seconds) for the JediComm reader-thread liveness log. Set to 0 to
+# silence it. A gap in those lines means the thread stopped running at all.
+JEDI_TICK_INTERVAL_S = 5.0
 
 class QtMars(QObject):
     """
@@ -53,11 +64,17 @@ class QtMars(QObject):
 
     def __init__(self, port: str | None = None, baudrate: int = 115200, limb: str = "Right", 
                  auto_heartbeat: bool = True, log_heartbeat: bool = False,
-                 patient_id: str = None, time_point: str = "A0") -> None:
+                 patient_id: str = None, time_point: str = "A0",
+                 heartbeat_interval: float = HEARTBEAT_INTERVAL_S,
+                 tick_interval: float = JEDI_TICK_INTERVAL_S) -> None:
         super().__init__()
         self.patient_id = patient_id
         self.time_point = time_point
-        self.dev = JediComm(port, baudrate)
+        # The heartbeat is sent from JediComm's own thread so that it survives a
+        # blocked Qt main thread; auto_heartbeat only adds a redundant QTimer one.
+        self.dev = JediComm(port, baudrate,
+                            heartbeat_interval=heartbeat_interval,
+                            tick_interval=tick_interval)
         # Upacked data from MARS with time stamp.
         self.currstatedata = []
         self.prevstatedata = []
