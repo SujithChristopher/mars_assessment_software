@@ -35,6 +35,17 @@ class WorkspaceAssessmentCanvas(QWidget):
     SCALE_X = 10.0  # Matches Unity implementation
     SCALE_Y = 10.0
 
+    # Field of view, in Unity units, mapped onto the canvas's short axis.
+    # The nominal workspace spans 10 units (normalised +/-0.5 * SCALE_X), so this
+    # leaves a margin of 0.5 units on each side. Recorded data reaches ~5.3 units
+    # from centre (ML exceeds WORKSPACE_Z_MAX), which a half-field of 5.5 clears.
+    # Lowering this below ~10.6 starts clipping real movement.
+    FIELD_UNITS = 11.0
+
+    # Cursor diameter in meters. Scaled like the targets so that it keeps its
+    # proportions relative to them on any canvas size.
+    CURSOR_SIZE = 0.012
+
     def __init__(self, movement_type="MLAP", parent=None):
         super().__init__(parent)
         self.movement_type = movement_type  # AP, ML, or MLAP
@@ -68,6 +79,19 @@ class WorkspaceAssessmentCanvas(QWidget):
         self.dr_targets_total = 0        # Total peak targets in the sequence
         self.dr_targets_remaining = 0    # Targets left (includes one in progress)
 
+    def pixels_per_unity_unit(self) -> float:
+        """Pixels per Unity unit for the current canvas size.
+
+        Isotropic on purpose: the drawn shape of the workspace is the assessment
+        result, so ML and AP must stay directly comparable by eye.
+        """
+        return min(self.width(), self.height()) / self.FIELD_UNITS
+
+    def meters_to_pixels(self, size_m: float) -> float:
+        """Convert a size in meters to pixels, using the ML span as reference."""
+        z_spread = mdef.WORKSPACE_Z_MAX - mdef.WORKSPACE_Z_MIN
+        return (size_m / z_spread) * self.SCALE_X * self.pixels_per_unity_unit()
+
     def robot_to_screen(self, y: float, z: float) -> tuple:
         """Convert robot coordinates (meters) to screen coordinates (pixels).
 
@@ -99,11 +123,10 @@ class WorkspaceAssessmentCanvas(QWidget):
         if self.limb_type == "RIGHT":
             unity_x = -unity_x
 
-        # Dynamic scaling based on window size
-        # We want to fit ~12 Unity units into the smaller dimension
+        # Dynamic scaling based on window size (see FIELD_UNITS)
         canvas_center_x = self.width() / 2
         canvas_center_y = self.height() / 2
-        pixels_per_unity_unit = min(self.width(), self.height()) / 14.0
+        pixels_per_unity_unit = self.pixels_per_unity_unit()
 
         # Convert Unity units to screen pixels
         x_screen = canvas_center_x + unity_x * pixels_per_unity_unit
@@ -131,7 +154,7 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         canvas_center_x = self.width() / 2
         canvas_center_y = self.height() / 2
-        pixels_per_unity_unit = min(self.width(), self.height()) / 14.0
+        pixels_per_unity_unit = self.pixels_per_unity_unit()
 
         # Convert screen pixels to Unity units
         unity_x = (x_screen - canvas_center_x) / pixels_per_unity_unit
@@ -220,7 +243,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         painter.setPen(QPen(QColor(240, 240, 240), 1))
         
         # Pixels per Unity unit defines our coordinate system
-        ppu = min(self.width(), self.height()) / 14.0
+        ppu = self.pixels_per_unity_unit()
         
         # Draw vertical lines
         center_x = self.width() / 2
@@ -414,9 +437,15 @@ class WorkspaceAssessmentCanvas(QWidget):
 
         screen_pos = self.robot_to_screen(self.current_pos[0], self.current_pos[1])
 
+        # Sized from the canvas scale, so the cursor keeps its proportion to the
+        # targets when FIELD_UNITS or the window size changes.
+        diameter = self.meters_to_pixels(self.CURSOR_SIZE)
+        radius = max(4, int(round(diameter / 2)))
+
         painter.setPen(QPen(QColor(0, 200, 0), 2))
         painter.setBrush(QBrush(QColor(0, 200, 0, 100)))
-        painter.drawEllipse(screen_pos[0] - 8, screen_pos[1] - 8, 16, 16)
+        painter.drawEllipse(screen_pos[0] - radius, screen_pos[1] - radius,
+                            2 * radius, 2 * radius)
 
     def _draw_instruction_text(self, painter):
         """Draw instruction text overlay with a background pill."""
@@ -537,11 +566,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         TARGET_COMPLETE_SCALE = 0.6
 
         # Convert to pixels (meters -> Unity units -> pixels)
-        pixels_per_unity_unit = min(self.width(), self.height()) / 14.0
-        # Use Z spread (ML range) as the reference for scaling
-        import marsdefs as mdef
-        z_spread = mdef.WORKSPACE_Z_MAX - mdef.WORKSPACE_Z_MIN
-        target_size_pixels = (TARGET_SIZE / z_spread) * self.SCALE_X * pixels_per_unity_unit
+        target_size_pixels = self.meters_to_pixels(TARGET_SIZE)
 
         for target, pos in self.arm_weight_targets.items():
             if target == ArmWeightTarget.NONE:
@@ -616,10 +641,7 @@ class WorkspaceAssessmentCanvas(QWidget):
         TARGET_COMPLETE_SCALE = 0.6
 
         # Convert to pixels (meters -> Unity units -> pixels)
-        pixels_per_unity_unit = min(self.width(), self.height()) / 14.0
-        import marsdefs as mdef
-        z_spread = mdef.WORKSPACE_Z_MAX - mdef.WORKSPACE_Z_MIN
-        target_size_pixels = (TARGET_SIZE / z_spread) * self.SCALE_X * pixels_per_unity_unit
+        target_size_pixels = self.meters_to_pixels(TARGET_SIZE)
 
         for target, pos in self.discrete_reach_targets.items():
             if target == DiscreteReachTarget.NONE or pos is None:
